@@ -1,3 +1,3 @@
 # Golang-Projects
 
-This repo contains mini golang-projects
+> This repo contains mini golang-projects
