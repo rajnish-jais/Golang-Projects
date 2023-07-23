@@ -6,30 +6,33 @@ var store = map[string]int{
 	"product3": 10,
 }
 
-type Order struct {
+type ItemReq struct {
+	store map[string]int
 }
 
-func NewStore(order Order) Store {
-	return store
-}
-func addItem(productId string, quantity int) {
-	_, exits := store[productId]
-	if !exits {
-		store[productId] = quantity
-	}
-	store[productId] += quantity
+func NewInventory() Inventory {
+	return ItemReq{store: store}
 }
 
-func remove(productId string) bool {
-	_, exits := store[productId]
+func (ir ItemReq) AddItem(productId string, quantity int) {
+	ir.store[productId] += quantity
+}
+
+func (ir ItemReq) RemoveItem(productId string) bool {
+	count, exits := ir.store[productId]
 	if !exits {
 		return false
 	}
 
-	delete(store, productId)
-	return false
+	if count == 1 {
+		delete(store, productId)
+	} else {
+		ir.store[productId] = count - 1
+	}
+
+	return true
 }
 
-func view() map[string]int {
-	return store
+func (ir ItemReq) ViewItem() map[string]int {
+	return ir.store
 }
