@@ -1,12 +1,14 @@
 package main
 
 import (
-	"github.com/Golang-Projects/fulfilment-service/handler"
-	"github.com/Golang-Projects/fulfilment-service/service"
-	"github.com/Golang-Projects/fulfilment-service/store"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/Golang-Projects/fulfilment-service/handler"
+	"github.com/Golang-Projects/fulfilment-service/service"
+	"github.com/Golang-Projects/fulfilment-service/store"
+	"github.com/gorilla/mux"
 )
 
 func main() {
@@ -17,9 +19,11 @@ func main() {
 	service := service.NewInventoryService(store)
 	handler := handler.New(service, logger)
 
-	http.HandleFunc("/addItem", handler.AddItem)
-	http.HandleFunc("/removeItem", handler.RemoveItem)
-	http.HandleFunc("/viewItems", handler.ViewItems)
+	r := mux.NewRouter()
 
-	logger.Fatal(http.ListenAndServe(":8080", nil))
+	r.HandleFunc("/addItem", handler.AddItem).Methods("POST")
+	r.HandleFunc("/removeItem", handler.RemoveItem).Methods("DELETE")
+	r.HandleFunc("/viewItems", handler.ViewItems).Methods("GET")
+
+	logger.Fatal(http.ListenAndServe(":8080", r))
 }
