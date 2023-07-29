@@ -1,0 +1,4 @@
+development:
+  driver: store
+  open: store://root:root@localhost/tiger-sighting?sslmode=disable
+  import: github.com/lib/pq

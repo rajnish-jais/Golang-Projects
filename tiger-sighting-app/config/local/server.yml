@@ -1,0 +1,10 @@
+database:
+  username: postgres
+  password: postgres
+  dbname: tiger_hall
+  host: localhost
+  port: 5432
+  sslmode: disable
+
+jwt:
+  secret_key: your-jwt-secret-key
