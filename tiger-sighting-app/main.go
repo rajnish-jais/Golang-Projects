@@ -1,10 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	conf "tiger-sighting-app/config"
-	"tiger-sighting-app/pkg/repository/store"
+	"tiger-sighting-app/pkg/auth"
+	"tiger-sighting-app/pkg/repository"
+	"tiger-sighting-app/pkg/server"
 )
 
 func main() {
@@ -13,15 +14,28 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to read configuration: %v", err)
 	}
-	fmt.Println(config)
 
 	// Initialize the database connection
 	dbConnectionString := conf.BuildDBConnectionString(config.Database)
-	fmt.Println(dbConnectionString)
-	connection, err := store.NewPostgresDB(dbConnectionString)
+
+	store, err := repository.NewPostgresRepository(dbConnectionString)
 	if err != nil {
 		log.Fatalf("Failed to initialize the database: %v", err)
 	}
-	defer connection.Close()
 
+	// Initialize the JWT authentication
+	auth := auth.NewAuth(config.JWT.SecretKey)
+
+	// Initialize the server
+	srv := server.NewServer()
+
+	// Set up the routes and handlers
+	srv.SetupRoutes(store, auth)
+
+	// Start the server
+	port := "8080" // You can change the port as needed
+	err = srv.Start(port)
+	if err != nil {
+		log.Fatalf("Failed to start the server: %v", err)
+	}
 }
