@@ -32,8 +32,9 @@ func (s *Server) SetupRoutes(tigerRepo repository.TigerRepository, auth *auth.Au
 	s.router.HandleFunc("/login", handlers.LoginHandler).Methods("POST")
 
 	// Protected routes (require authentication)
-	s.router.Handle("/tiger/create", middleware.AuthMiddleware(auth, http.HandlerFunc(handlers.CreateTigerSightingHandler))).Methods("POST")
+	s.router.Handle("/tiger/create", middleware.AuthMiddleware(auth, http.HandlerFunc(handlers.CreateTigerHandler))).Methods("POST")
 	s.router.HandleFunc("/tigers", handlers.GetAllTigersHandler).Methods("GET")
+	s.router.Handle("/tiger-sighting/create", middleware.AuthMiddleware(auth, http.HandlerFunc(handlers.CreateTigerSightingHandler))).Methods("POST")
 	s.router.HandleFunc("/tiger/{id}/sightings", handlers.GetAllTigerSightingsHandler).Methods("GET")
 }
 
