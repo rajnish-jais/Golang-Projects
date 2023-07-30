@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS tigers (
     );
 
 -- Create the 'sightings' table
-CREATE TABLE IF NOT EXISTS sightings (
+CREATE TABLE IF NOT EXISTS tiger_sightings (
     id SERIAL PRIMARY KEY,
     tiger_id INTEGER REFERENCES tigers(id) ON DELETE CASCADE,
     timestamp TIMESTAMP NOT NULL,

@@ -10,8 +10,9 @@ type TigerRepository interface {
 	CreateTiger(tiger *models.Tiger) error
 	GetAllTigers() ([]*models.Tiger, error)
 	GetUserByEmail(email string) (*models.User, error)
-	CreateTigerSighting(tigerSighting *models.TigerSighting, resizedImage []byte) error
+	CreateTigerSighting(tigerSighting *models.TigerSighting) error
 	GetAllTigerSightings(tigerID int) ([]models.TigerSighting, error)
+	GetPreviousTigerSighting(tigerID int) (*models.TigerSighting, error)
 }
 
 func NewPostgresRepository(connection string) (TigerRepository, error) {

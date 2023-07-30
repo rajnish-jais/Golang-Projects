@@ -1,14 +1,11 @@
 package models
 
-import (
-	"time"
-)
+import "time"
 
 type TigerSighting struct {
-	ID        int       `json:"id"`
-	TigerID   int       `json:"tiger_id"`
-	Timestamp time.Time `json:"timestamp"`
-	Latitude  float64   `json:"latitude"`
-	Longitude float64   `json:"longitude"`
-	Image     []byte    `json:"image_url"`
+	ID          int       `json:"id"`
+	TigerID     int       `json:"tigerID"`
+	Timestamp   time.Time `json:"timestamp"`
+	Coordinates `json:"coordinates omitempty"`
+	Image       []byte `json:"image, omitempty"`
 }

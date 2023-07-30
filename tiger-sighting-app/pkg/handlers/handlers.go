@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/disintegration/imaging"
+	"github.com/umahmood/haversine"
 	"golang.org/x/crypto/bcrypt"
 	"image"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"sort"
@@ -176,30 +178,102 @@ func (h *Handlers) GetAllTigersHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) CreateTigerSightingHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse the request body to get the tiger sighting data
-	var newSighting models.TigerSighting
-	err := json.NewDecoder(r.Body).Decode(&newSighting)
-	if err != nil {
-		h.Logger.Printf("Error decoding request body: %v", err)
-		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+
+	// Parse the form data
+	if err := r.ParseMultipartForm(10 << 20); err != nil { // Max memory of 10 MB for file uploads
+		http.Error(w, "Unable to parse form data", http.StatusBadRequest)
 		return
 	}
 
+	// Get the form values
+	tigerIDStr := r.FormValue("tigerID")
+	timestampStr := r.FormValue("timestamp")
+	latStr := r.FormValue("lat")
+	longStr := r.FormValue("long")
+
+	// Convert the form values to appropriate types
+	tigerID, err := strconv.Atoi(tigerIDStr)
+	if err != nil {
+		http.Error(w, "Invalid tigerID value", http.StatusBadRequest)
+		return
+	}
+
+	timestamp, err := time.Parse(time.RFC3339, timestampStr)
+	if err != nil {
+		http.Error(w, "Invalid timestamp value", http.StatusBadRequest)
+		return
+	}
+
+	lat, err := strconv.ParseFloat(latStr, 64)
+	if err != nil {
+		http.Error(w, "Invalid lat value", http.StatusBadRequest)
+		return
+	}
+
+	long, err := strconv.ParseFloat(longStr, 64)
+	if err != nil {
+		http.Error(w, "Invalid long value", http.StatusBadRequest)
+		return
+	}
+
+	// Check if the tiger has a previous sighting
+	previousSighting, err := h.TigerRepo.GetPreviousTigerSighting(tigerID)
+	if err != nil {
+		http.Error(w, "Failed to retrieve previous sighting", http.StatusInternalServerError)
+		return
+	}
+
+	// If there is a previous sighting, calculate the distance between the coordinates
+	if previousSighting != nil {
+		previousCoordinates := models.Coordinates{Lat: previousSighting.Lat, Long: previousSighting.Long}
+		currentCoordinates := models.Coordinates{Lat: lat, Long: long}
+		distance := calculateDistance(previousCoordinates, currentCoordinates)
+
+		// If the distance is less than or equal to 5 kilometers, reject the new sighting
+		if distance <= 5.0 {
+			http.Error(w, "A tiger sighting within 5 kilometers already exists", http.StatusConflict)
+			return
+		}
+	}
+
+	newSighting := models.TigerSighting{
+		TigerID:     tigerID,
+		Timestamp:   timestamp,
+		Coordinates: models.Coordinates{Lat: lat, Long: long},
+	}
+
 	// Check if the required fields are provided
-	if newSighting.Latitude == 0 || newSighting.Longitude == 0 || newSighting.Timestamp.IsZero() {
+	if newSighting.Lat == 0 || newSighting.Long == 0 || newSighting.Timestamp.IsZero() {
 		respondWithError(w, http.StatusBadRequest, "Latitude, Longitude, and Timestamp are required")
 		return
 	}
 
-	// Resize the image to 250x200 (not implemented here, you can use external libraries like imaging)
-	resizedImage, err := resizeImage(newSighting.Image, 250, 200)
+	// Process the image file
+	imageFile, _, err := r.FormFile("image")
+	if err != nil {
+		http.Error(w, "Failed to get image file", http.StatusBadRequest)
+		return
+	}
+	defer imageFile.Close()
+
+	// Read the image data into a byte slice
+	imageData, err := ioutil.ReadAll(imageFile)
+	if err != nil {
+		http.Error(w, "Failed to read image data", http.StatusInternalServerError)
+		return
+	}
+
+	// Resize the image to 250x200
+	resizedImage, err := resizeImage(imageData, 250, 200)
 	if err != nil {
 		h.Logger.Printf("Error resizing image: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Error resizing image")
 		return
 	}
 
+	newSighting.Image = resizedImage
 	// Create the tiger sighting in the database
-	err = h.TigerRepo.CreateTigerSighting(&newSighting, resizedImage)
+	err = h.TigerRepo.CreateTigerSighting(&newSighting)
 	if err != nil {
 		h.Logger.Printf("Error creating tiger sighting: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Failed to create tiger sighting")
@@ -208,6 +282,15 @@ func (h *Handlers) CreateTigerSightingHandler(w http.ResponseWriter, r *http.Req
 
 	// Respond with the newly created tiger sighting
 	respondWithJSON(w, http.StatusCreated, newSighting)
+}
+
+func calculateDistance(coord1, coord2 models.Coordinates) float64 {
+	point1 := haversine.Coord{Lat: coord1.Lat, Lon: coord1.Long} // Oxford, UK
+	point2 := haversine.Coord{Lat: coord2.Lat, Lon: coord2.Long} // Turin, Italy
+
+	_, distanceKm := haversine.Distance(point1, point2)
+
+	return distanceKm
 }
 
 func resizeImage(imageBytes []byte, width, height int) ([]byte, error) {
