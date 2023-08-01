@@ -26,18 +26,19 @@ CREATE TABLE IF NOT EXISTS tiger_sightings (
     timestamp TIMESTAMP NOT NULL,
     lat DOUBLE PRECISION NOT NULL,
     long DOUBLE PRECISION NOT NULL,
-    image BYTEA
+    image BYTEA,
+    reporter_email VARCHAR(255)
     );
 
 -- Indexes for improved performance (optional, but recommended for large datasets)
 CREATE INDEX IF NOT EXISTS idx_tigers_last_seen ON tigers (last_seen DESC);
-CREATE INDEX IF NOT EXISTS idx_sightings_timestamp ON sightings (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_tiger_sightings_timestamp ON tiger_sightings (timestamp DESC);
 
 -- +goose Down
 -- SQL in section 'Down' is executed when this migration is rolled back
 
 -- Drop the 'sightings' table
-DROP TABLE IF EXISTS sightings;
+DROP TABLE IF EXISTS tiger_sightings;
 
 -- Drop the 'tigers' table
 DROP TABLE IF EXISTS tigers;

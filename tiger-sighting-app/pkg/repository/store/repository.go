@@ -85,13 +85,12 @@ func (p *PostgresRepository) GetUserByEmail(email string) (*models.User, error) 
 }
 
 func (p *PostgresRepository) CreateTigerSighting(tigerSighting *models.TigerSighting) error {
-
 	query := `
-       INSERT INTO sightings (tiger_id, timestamp, lat, long, image)
-       VALUES ($1, $2, $3, $4, $5)
+       INSERT INTO tiger_sightings (tiger_id, timestamp, lat, long, image, reporter_Email)
+       VALUES ($1, $2, $3, $4, $5,$6)
        RETURNING id
    `
-	err := p.db.QueryRow(query, tigerSighting.TigerID, tigerSighting.Timestamp, tigerSighting.Lat, tigerSighting.Long, tigerSighting.Image).Scan(&tigerSighting.ID)
+	err := p.db.QueryRow(query, tigerSighting.TigerID, tigerSighting.Timestamp, tigerSighting.Lat, tigerSighting.Long, tigerSighting.Image, tigerSighting.ReporterEmail).Scan(&tigerSighting.ID)
 	if err != nil {
 		return fmt.Errorf("failed to create tiger sighting: %v", err)
 	}
@@ -101,8 +100,8 @@ func (p *PostgresRepository) CreateTigerSighting(tigerSighting *models.TigerSigh
 
 func (p *PostgresRepository) GetAllTigerSightings(tigerID int) ([]models.TigerSighting, error) {
 	query := `
-       SELECT id, tiger_id, timestamp, lat, long, image
-       FROM sightings
+       SELECT id, tiger_id, timestamp, lat, long, image,reporter_Email
+       FROM tiger_sightings
        WHERE tiger_id = $1
        ORDER BY timestamp DESC
    `
@@ -116,7 +115,7 @@ func (p *PostgresRepository) GetAllTigerSightings(tigerID int) ([]models.TigerSi
 	sightings := []models.TigerSighting{}
 	for rows.Next() {
 		var sighting models.TigerSighting
-		err := rows.Scan(&sighting.ID, &sighting.TigerID, &sighting.Timestamp, &sighting.Lat, &sighting.Long, &sighting.Image)
+		err := rows.Scan(&sighting.ID, &sighting.TigerID, &sighting.Timestamp, &sighting.Lat, &sighting.Long, &sighting.Image, &sighting.ReporterEmail)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan tiger sighting: %v", err)
 		}
@@ -133,8 +132,8 @@ func (p *PostgresRepository) GetAllTigerSightings(tigerID int) ([]models.TigerSi
 func (p *PostgresRepository) GetPreviousTigerSighting(tigerID int) (*models.TigerSighting, error) {
 	// Query the database to get the previous tiger sighting based on tigerID
 	query := `
-		SELECT id, tiger_id, timestamp, lat, long, image
-		FROM sightings
+		SELECT id, tiger_id, timestamp, lat, long, image, reporter_Email
+		FROM tiger_sightings
 		WHERE tiger_id = $1
 		ORDER BY timestamp DESC
 		LIMIT 1;
@@ -148,6 +147,7 @@ func (p *PostgresRepository) GetPreviousTigerSighting(tigerID int) (*models.Tige
 		&previousSighting.Coordinates.Lat,
 		&previousSighting.Coordinates.Long,
 		&previousSighting.Image,
+		&previousSighting.ReporterEmail,
 	)
 
 	if err == sql.ErrNoRows {
@@ -159,4 +159,30 @@ func (p *PostgresRepository) GetPreviousTigerSighting(tigerID int) (*models.Tige
 	}
 
 	return &previousSighting, nil
+}
+
+func (p *PostgresRepository) GetTigerSightingsByTigerID(tigerID int) ([]*models.TigerSighting, error) {
+	query := "SELECT id, tiger_id, timestamp, lat, long, image, reporter_email FROM tiger_sightings WHERE tiger_id = $1"
+
+	rows, err := p.db.Query(query, tigerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tiger sightings: %v", err)
+	}
+	defer rows.Close()
+
+	var tigerSightings []*models.TigerSighting
+
+	for rows.Next() {
+		var sighting models.TigerSighting
+		if err := rows.Scan(&sighting.ID, &sighting.TigerID, &sighting.Timestamp, &sighting.Coordinates.Lat, &sighting.Coordinates.Long, &sighting.Image, &sighting.ReporterEmail); err != nil {
+			return nil, fmt.Errorf("failed to scan tiger sighting row: %v", err)
+		}
+		tigerSightings = append(tigerSightings, &sighting)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating through tiger sightings: %v", err)
+	}
+
+	return tigerSightings, nil
 }

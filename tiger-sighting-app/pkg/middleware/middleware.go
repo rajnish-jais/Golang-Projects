@@ -26,7 +26,7 @@ func AuthMiddleware(auth *auth.Auth, next http.Handler) http.Handler {
 		token := tokenParts[1]
 
 		// Verify the token
-		username, err := auth.VerifyToken(token)
+		username, email, err := auth.VerifyToken(token)
 		if err != nil {
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
@@ -35,6 +35,10 @@ func AuthMiddleware(auth *auth.Auth, next http.Handler) http.Handler {
 		// Add the username to the request context for use in the handlers
 		ctx := r.Context()
 		ctx = context.WithValue(ctx, "username", username)
+		r = r.WithContext(ctx)
+
+		// Add the email to the request context for use in the handlers
+		ctx = context.WithValue(ctx, "email", email)
 		r = r.WithContext(ctx)
 
 		// Call the next handler in the chain

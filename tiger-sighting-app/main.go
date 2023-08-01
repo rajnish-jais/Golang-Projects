@@ -4,6 +4,7 @@ import (
 	"log"
 	conf "tiger-sighting-app/config"
 	"tiger-sighting-app/pkg/auth"
+	"tiger-sighting-app/pkg/messaging"
 	"tiger-sighting-app/pkg/repository"
 	"tiger-sighting-app/pkg/server"
 )
@@ -14,6 +15,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to read configuration: %v", err)
 	}
+
+	// Initialize RabbitMQ message broker
+	messageBroker, err := messaging.NewMessageBroker(config.RabbitMq.AmqpURL, config.RabbitMq.QueueName)
+	if err != nil {
+		log.Fatalf("failed to initialize message broker: %v", err)
+	}
+	defer messageBroker.Close()
+
+	// Start the message consumer in a separate Goroutine
+	go messageBroker.ConsumeMessages(messaging.ProcessMessage)
 
 	// Initialize the database connection
 	dbConnectionString := conf.BuildDBConnectionString(config.Database)
@@ -30,11 +41,10 @@ func main() {
 	srv := server.NewServer()
 
 	// Set up the routes and handlers
-	srv.SetupRoutes(store, auth)
+	srv.SetupRoutes(store, messageBroker, auth)
 
 	// Start the server
-	port := "8080" // You can change the port as needed
-	err = srv.Start(port)
+	err = srv.Start(config.Server.Port)
 	if err != nil {
 		log.Fatalf("Failed to start the server: %v", err)
 	}

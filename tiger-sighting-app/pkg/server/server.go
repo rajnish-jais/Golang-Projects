@@ -6,6 +6,7 @@ import (
 	"os"
 	"tiger-sighting-app/pkg/auth"
 	"tiger-sighting-app/pkg/handlers"
+	"tiger-sighting-app/pkg/messaging"
 	"tiger-sighting-app/pkg/middleware"
 	"tiger-sighting-app/pkg/repository"
 
@@ -20,12 +21,12 @@ type Server struct {
 func NewServer() *Server {
 	return &Server{
 		router: mux.NewRouter(),
-		logger: log.New(os.Stdout, "[Tiger-Sighting] ", log.LstdFlags),
+		logger: log.New(os.Stdout, "[Tigerhall Kittens] ", log.LstdFlags),
 	}
 }
 
-func (s *Server) SetupRoutes(tigerRepo repository.TigerRepository, auth *auth.Auth) {
-	handlers := handlers.NewHandlers(tigerRepo, s.logger, auth)
+func (s *Server) SetupRoutes(tigerRepo repository.TigerRepository, broker *messaging.MessageBroker, auth *auth.Auth) {
+	handlers := handlers.NewHandlers(tigerRepo, broker, s.logger, auth)
 
 	// Public routes
 	s.router.HandleFunc("/signup", handlers.SignupHandler).Methods("POST")

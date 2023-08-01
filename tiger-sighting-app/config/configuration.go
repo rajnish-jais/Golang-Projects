@@ -8,8 +8,19 @@ import (
 )
 
 type Config struct {
-	Database `yaml:"database"`
-	JWT      `yaml:"jwt"`
+	Database
+	JWT
+	RabbitMq
+	Server
+}
+
+type Server struct {
+	Port string `yaml:"port"`
+}
+
+type RabbitMq struct {
+	AmqpURL   string `yaml:"amqpURL"`
+	QueueName string `yaml:"queueName"`
 }
 
 type Database struct {
