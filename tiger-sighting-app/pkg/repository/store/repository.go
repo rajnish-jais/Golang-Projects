@@ -6,15 +6,15 @@ import (
 	"tiger-sighting-app/pkg/models"
 )
 
-type PostgresRepository struct {
+type postgresRepository struct {
 	db *sql.DB
 }
 
-func NewPostgresRepository(db *sql.DB) *PostgresRepository {
-	return &PostgresRepository{db: db}
+func NewPostgresRepository(db *sql.DB) *postgresRepository {
+	return &postgresRepository{db: db}
 }
 
-func (p *PostgresRepository) CreateUser(user *models.User) error {
+func (p *postgresRepository) CreateUser(user *models.User) error {
 	query := `
 		INSERT INTO users (username, email, password)
 		VALUES ($1, $2, $3)
@@ -27,7 +27,7 @@ func (p *PostgresRepository) CreateUser(user *models.User) error {
 	return nil
 }
 
-func (p *PostgresRepository) CreateTiger(tiger *models.Tiger) error {
+func (p *postgresRepository) CreateTiger(tiger *models.Tiger) error {
 	query := `
 		INSERT INTO tigers (name, date_of_birth, last_seen, lat, long)
 		VALUES ($1, $2, $3, $4, $5)
@@ -40,7 +40,7 @@ func (p *PostgresRepository) CreateTiger(tiger *models.Tiger) error {
 	return nil
 }
 
-func (p *PostgresRepository) GetAllTigers() ([]*models.Tiger, error) {
+func (p *postgresRepository) GetAllTigers() ([]*models.Tiger, error) {
 	query := `
 		SELECT id, name, date_of_birth, last_seen, lat, long
 		FROM tigers
@@ -65,7 +65,7 @@ func (p *PostgresRepository) GetAllTigers() ([]*models.Tiger, error) {
 	return tigers, nil
 }
 
-func (p *PostgresRepository) GetUserByEmail(email string) (*models.User, error) {
+func (p *postgresRepository) GetUserByEmail(email string) (*models.User, error) {
 	query := `
         SELECT id, username, email, password
         FROM users
@@ -84,7 +84,7 @@ func (p *PostgresRepository) GetUserByEmail(email string) (*models.User, error) 
 	return user, nil
 }
 
-func (p *PostgresRepository) CreateTigerSighting(tigerSighting *models.TigerSighting) error {
+func (p *postgresRepository) CreateTigerSighting(tigerSighting *models.TigerSighting) error {
 	query := `
        INSERT INTO tiger_sightings (tiger_id, timestamp, lat, long, image, reporter_Email)
        VALUES ($1, $2, $3, $4, $5,$6)
@@ -98,7 +98,7 @@ func (p *PostgresRepository) CreateTigerSighting(tigerSighting *models.TigerSigh
 	return nil
 }
 
-func (p *PostgresRepository) GetAllTigerSightings(tigerID int) ([]models.TigerSighting, error) {
+func (p *postgresRepository) GetAllTigerSightings(tigerID int) ([]*models.TigerSighting, error) {
 	query := `
        SELECT id, tiger_id, timestamp, lat, long, image,reporter_Email
        FROM tiger_sightings
@@ -112,14 +112,14 @@ func (p *PostgresRepository) GetAllTigerSightings(tigerID int) ([]models.TigerSi
 	}
 	defer rows.Close()
 
-	sightings := []models.TigerSighting{}
+	sightings := []*models.TigerSighting{}
 	for rows.Next() {
 		var sighting models.TigerSighting
 		err := rows.Scan(&sighting.ID, &sighting.TigerID, &sighting.Timestamp, &sighting.Lat, &sighting.Long, &sighting.Image, &sighting.ReporterEmail)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan tiger sighting: %v", err)
 		}
-		sightings = append(sightings, sighting)
+		sightings = append(sightings, &sighting)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -129,7 +129,7 @@ func (p *PostgresRepository) GetAllTigerSightings(tigerID int) ([]models.TigerSi
 	return sightings, nil
 }
 
-func (p *PostgresRepository) GetPreviousTigerSighting(tigerID int) (*models.TigerSighting, error) {
+func (p *postgresRepository) GetPreviousTigerSighting(tigerID int) (*models.TigerSighting, error) {
 	// Query the database to get the previous tiger sighting based on tigerID
 	query := `
 		SELECT id, tiger_id, timestamp, lat, long, image, reporter_Email
@@ -144,8 +144,8 @@ func (p *PostgresRepository) GetPreviousTigerSighting(tigerID int) (*models.Tige
 		&previousSighting.ID,
 		&previousSighting.TigerID,
 		&previousSighting.Timestamp,
-		&previousSighting.Coordinates.Lat,
-		&previousSighting.Coordinates.Long,
+		&previousSighting.Lat,
+		&previousSighting.Long,
 		&previousSighting.Image,
 		&previousSighting.ReporterEmail,
 	)
@@ -159,30 +159,4 @@ func (p *PostgresRepository) GetPreviousTigerSighting(tigerID int) (*models.Tige
 	}
 
 	return &previousSighting, nil
-}
-
-func (p *PostgresRepository) GetTigerSightingsByTigerID(tigerID int) ([]*models.TigerSighting, error) {
-	query := "SELECT id, tiger_id, timestamp, lat, long, image, reporter_email FROM tiger_sightings WHERE tiger_id = $1"
-
-	rows, err := p.db.Query(query, tigerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tiger sightings: %v", err)
-	}
-	defer rows.Close()
-
-	var tigerSightings []*models.TigerSighting
-
-	for rows.Next() {
-		var sighting models.TigerSighting
-		if err := rows.Scan(&sighting.ID, &sighting.TigerID, &sighting.Timestamp, &sighting.Coordinates.Lat, &sighting.Coordinates.Long, &sighting.Image, &sighting.ReporterEmail); err != nil {
-			return nil, fmt.Errorf("failed to scan tiger sighting row: %v", err)
-		}
-		tigerSightings = append(tigerSightings, &sighting)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating through tiger sightings: %v", err)
-	}
-
-	return tigerSightings, nil
 }

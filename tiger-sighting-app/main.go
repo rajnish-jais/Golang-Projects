@@ -7,6 +7,7 @@ import (
 	"tiger-sighting-app/pkg/messaging"
 	"tiger-sighting-app/pkg/repository"
 	"tiger-sighting-app/pkg/server"
+	"tiger-sighting-app/pkg/service"
 )
 
 func main() {
@@ -37,11 +38,14 @@ func main() {
 	// Initialize the JWT authentication
 	auth := auth.NewAuth(config.JWT.SecretKey)
 
+	// Initialize the service
+	service := service.NewTigerService(store, messageBroker)
+
 	// Initialize the server
 	srv := server.NewServer()
 
 	// Set up the routes and handlers
-	srv.SetupRoutes(store, messageBroker, auth)
+	srv.SetupRoutes(service, auth)
 
 	// Start the server
 	err = srv.Start(config.Server.Port)

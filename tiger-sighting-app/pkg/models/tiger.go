@@ -7,7 +7,8 @@ type Tiger struct {
 	Name        string    `json:"name"`
 	DateOfBirth time.Time `json:"date_of_birth"`
 	LastSeen    time.Time `json:"last_seen"`
-	Coordinates `json:"coordinates"`
+	Lat         float64   `json:"lat"`
+	Long        float64   `json:"long"`
 }
 
 type Coordinates struct {

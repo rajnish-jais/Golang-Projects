@@ -1,49 +1,77 @@
 package middleware
 
 import (
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 	"tiger-sighting-app/pkg/auth"
 )
 
-func TestAuthMiddleware(t *testing.T) {
-	// Create a new Auth instance with a secret key
-	authInstance := auth.NewAuth("my-secret-key")
+func TestAuthMiddleware_ValidToken(t *testing.T) {
+	// Create a new instance of Auth with a dummy secret key
+	authService := auth.NewAuth("test-secret-key")
 
-	// Create a test handler that sets a response header with the username from the context
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		username, ok := ctx.Value("username").(string)
-		if !ok {
-			username = "unknown"
-		}
-		w.Header().Set("X-Username", username)
-	})
+	// Generate a valid token
+	validToken, err := authService.GenerateToken("testuser", "test@example.com")
+	assert.NoError(t, err)
 
-	// Create a new request with a valid token in the Authorization header
-	token, _ := authInstance.GenerateToken("testuser")
-	req := httptest.NewRequest("GET", "/test", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
+	// Create a new request with the valid token in the Authorization header
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Authorization", "Bearer "+validToken)
 
 	// Create a ResponseRecorder to record the response
 	rr := httptest.NewRecorder()
 
-	// Create the auth middleware and wrap it around the testHandler
-	authMiddleware := AuthMiddleware(authInstance, testHandler)
+	// Create a mock handler that will be called after the AuthMiddleware
+	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Retrieve the username and email from the request context
+		username := r.Context().Value("username").(string)
+		email := r.Context().Value("email").(string)
 
-	// Call the authMiddleware with the test request
+		// Check if the values in the context match the expected values
+		assert.Equal(t, "testuser", username)
+		assert.Equal(t, "test@example.com", email)
+
+		// Write a response to indicate that the handler is called
+		w.Write([]byte("Handler called"))
+	})
+
+	// Call the AuthMiddleware with the mockHandler
+	authMiddleware := AuthMiddleware(authService, mockHandler)
 	authMiddleware.ServeHTTP(rr, req)
 
-	// Check the response status code and headers
-	assert.Equal(t, http.StatusOK, rr.Code, "Unexpected status code")
-	assert.Equal(t, "testuser", rr.Header().Get("X-Username"), "Unexpected username in response header")
+	// Check if the response status code is 200 (OK)
+	assert.Equal(t, http.StatusOK, rr.Code)
 
-	// Test unauthorized request (no Authorization header)
-	reqWithoutAuth := httptest.NewRequest("GET", "/test", nil)
-	rrWithoutAuth := httptest.NewRecorder()
+	// Check if the response body is "Handler called"
+	assert.Equal(t, "Handler called", rr.Body.String())
+}
 
-	authMiddleware.ServeHTTP(rrWithoutAuth, reqWithoutAuth)
-	assert.Equal(t, http.StatusUnauthorized, rrWithoutAuth.Code, "Unexpected status code for unauthorized request")
+func TestAuthMiddleware_InvalidToken(t *testing.T) {
+	// Create a new instance of Auth with a dummy secret key
+	authService := auth.NewAuth("test-secret-key")
+
+	// Create a request without the Authorization header (invalid token)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+
+	// Create a ResponseRecorder to record the response
+	rr := httptest.NewRecorder()
+
+	// Create a mock handler that will be called after the AuthMiddleware
+	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The handler should not be called if the token is invalid
+		t.Errorf("Handler should not be called")
+	})
+
+	// Call the AuthMiddleware with the mockHandler
+	authMiddleware := AuthMiddleware(authService, mockHandler)
+	authMiddleware.ServeHTTP(rr, req)
+
+	// Check if the response status code is 401 (Unauthorized)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+
+	// Check if the response body is "Unauthorized"
+	assert.Equal(t, "Unauthorized\n", rr.Body.String())
 }

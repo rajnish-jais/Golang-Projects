@@ -12,19 +12,19 @@ import (
 	"github.com/gorilla/mux"
 )
 
-type Server struct {
+type server struct {
 	router *mux.Router
 	logger *log.Logger
 }
 
-func NewServer() *Server {
-	return &Server{
+func NewServer() *server {
+	return &server{
 		router: mux.NewRouter(),
 		logger: log.New(os.Stdout, "[Tigerhall Kittens] ", log.LstdFlags),
 	}
 }
 
-func (s *Server) SetupRoutes(tigerService service.TigerService, auth *auth.Auth) {
+func (s *server) SetupRoutes(tigerService service.TigerService, auth *auth.Auth) {
 	handlers := handlers.NewHandlers(tigerService, s.logger, auth)
 
 	// Public routes
@@ -38,7 +38,7 @@ func (s *Server) SetupRoutes(tigerService service.TigerService, auth *auth.Auth)
 	s.router.HandleFunc("/tiger/{id}/sightings", handlers.GetAllTigerSightingsHandler).Methods("GET")
 }
 
-func (s *Server) Start(port string) error {
+func (s *server) Start(port string) error {
 	s.logger.Printf("Starting server on port %s...", port)
 	return http.ListenAndServe(":"+port, s.router)
 }

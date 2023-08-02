@@ -44,7 +44,7 @@ func (h *handlers) SignupHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.TigerService.SignupService(user)
+	err := h.TigerService.SignupService(&user)
 	if err != nil {
 		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -148,8 +148,7 @@ func (h *handlers) CreateTigerSightingHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	newSighting := models.TigerSighting{TigerID: tigerID, Timestamp: timestamp,
-		Coordinates: models.Coordinates{Lat: lat, Long: long}, ReporterEmail: reporterEmail}
+	newSighting := models.TigerSighting{TigerID: tigerID, Timestamp: timestamp, Lat: lat, Long: long, ReporterEmail: reporterEmail}
 
 	imageFile, _, err := r.FormFile("image")
 	if err != nil {

@@ -6,7 +6,8 @@ type TigerSighting struct {
 	ID            int       `json:"id"`
 	TigerID       int       `json:"tigerID"`
 	Timestamp     time.Time `json:"timestamp"`
-	Coordinates   `json:"coordinates"`
-	Image         []byte `json:"image"`
-	ReporterEmail string `json:"reporterEmail"`
+	Lat           float64   `json:"lat"`
+	Long          float64   `json:"long"`
+	Image         []byte    `json:"image"`
+	ReporterEmail string    `json:"reporterEmail"`
 }

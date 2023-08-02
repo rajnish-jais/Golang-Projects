@@ -25,15 +25,15 @@ func NewTigerService(tigerRepository repository.TigerRepository, broker *messagi
 }
 
 type TigerService interface {
-	SignupService(models.User) error
+	SignupService(*models.User) error
 	LoginService(models.LoginCredentials) (*models.User, error)
 	CreateTigerService(tiger models.Tiger) error
 	GetAllTigersService() ([]*models.Tiger, error)
 	CreateTigerSightingService(*models.TigerSighting) error
-	GetAllTigerSightingsService(int) ([]models.TigerSighting, error)
+	GetAllTigerSightingsService(int) ([]*models.TigerSighting, error)
 }
 
-func (s service) SignupService(user models.User) error {
+func (s service) SignupService(user *models.User) error {
 	// Hash the user's password before saving to the database
 	hashedPassword, err := auth.HashPassword(user.Password)
 	if err != nil {
@@ -42,7 +42,7 @@ func (s service) SignupService(user models.User) error {
 	user.Password = hashedPassword
 
 	// Create the user in the database
-	if err := s.TigerRepo.CreateUser(&user); err != nil {
+	if err := s.TigerRepo.CreateUser(user); err != nil {
 		return errors.New("failed to create user")
 	}
 	return err
@@ -112,7 +112,7 @@ func (s service) CreateTigerSightingService(newSighting *models.TigerSighting) e
 		return errors.New("failed to create tiger sighting")
 	}
 
-	previousSightings, err := s.TigerRepo.GetTigerSightingsByTigerID(newSighting.TigerID)
+	previousSightings, err := s.TigerRepo.GetAllTigerSightings(newSighting.TigerID)
 	if err != nil {
 		return errors.New("failed to retrieve previous sightings")
 	}
@@ -125,12 +125,12 @@ func (s service) CreateTigerSightingService(newSighting *models.TigerSighting) e
 	return nil
 }
 
-func (s service) GetAllTigerSightingsService(tigerID int) ([]models.TigerSighting, error) {
+func (s service) GetAllTigerSightingsService(tigerID int) ([]*models.TigerSighting, error) {
 	// Get a list of all tiger sightings for the specific tiger from the database
 	tigerSightings, err := s.TigerRepo.GetAllTigerSightings(tigerID)
 	if err != nil {
 
-		return []models.TigerSighting{}, errors.New("failed to fetch tiger sightings")
+		return []*models.TigerSighting{}, errors.New("failed to fetch tiger sightings")
 	}
 
 	// Sort the tiger sightings by date (if the timestamp is a time.Time field)
