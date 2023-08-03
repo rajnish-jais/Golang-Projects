@@ -5,11 +5,11 @@ import (
 	"log"
 	"sort"
 
-	"tiger-sighting-app/pkg/auth"
-	"tiger-sighting-app/pkg/messaging"
-	"tiger-sighting-app/pkg/models"
-	"tiger-sighting-app/pkg/repository"
-	"tiger-sighting-app/pkg/utility"
+	"tigerhall-kittens-app/pkg/auth"
+	"tigerhall-kittens-app/pkg/messaging"
+	"tigerhall-kittens-app/pkg/models"
+	"tigerhall-kittens-app/pkg/repository"
+	"tigerhall-kittens-app/pkg/utils"
 )
 
 type service struct {
@@ -93,7 +93,7 @@ func (s service) CreateTigerSightingService(newSighting *models.TigerSighting) e
 	if previousSighting != nil {
 		previousCoordinates := models.Coordinates{Lat: previousSighting.Lat, Long: previousSighting.Long}
 		currentCoordinates := models.Coordinates{Lat: newSighting.Lat, Long: newSighting.Long}
-		distance := utility.CalculateDistance(previousCoordinates, currentCoordinates)
+		distance := utils.CalculateDistance(previousCoordinates, currentCoordinates)
 
 		// If the distance is less than or equal to 5 kilometers, reject the new sighting
 		if distance <= 5.0 {
@@ -118,7 +118,7 @@ func (s service) CreateTigerSightingService(newSighting *models.TigerSighting) e
 	}
 
 	// Publish a new tiger sighting message
-	if err := s.messageBroker.PublishMessage(utility.GetMails(previousSightings)); err != nil {
+	if err := s.messageBroker.PublishMessage(utils.GetMails(previousSightings)); err != nil {
 		log.Printf("failed to publish message: %v", err)
 	}
 

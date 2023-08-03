@@ -6,8 +6,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/Golang-Projects/inventory-sytem/model"
-	"github.com/Golang-Projects/inventory-sytem/service"
+	"Golang-Projects/inventory-sytem/model"
+	"Golang-Projects/inventory-sytem/service"
 )
 
 type handler struct {

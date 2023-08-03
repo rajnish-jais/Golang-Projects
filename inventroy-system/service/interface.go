@@ -1,6 +1,6 @@
 package service
 
-import "github.com/Golang-Projects/inventory-sytem/model"
+import "Golang-Projects/inventory-sytem/model"
 
 type OrderFulfilmentService interface {
 	CanFulfilOrder(orderRequest model.OrderRequest) bool

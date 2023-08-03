@@ -1,14 +1,15 @@
-package utility
+package utils
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/disintegration/imaging"
-	"github.com/umahmood/haversine"
 	"image"
 	"net/http"
-	"tiger-sighting-app/pkg/models"
+
+	"github.com/disintegration/imaging"
+	"github.com/umahmood/haversine"
+	"tigerhall-kittens-app/pkg/models"
 )
 
 type EmailTemplate struct {

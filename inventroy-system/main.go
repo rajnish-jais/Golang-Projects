@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/Golang-Projects/inventory-sytem/handler"
-	"github.com/Golang-Projects/inventory-sytem/service"
-	"github.com/Golang-Projects/inventory-sytem/store"
+	"Golang-Projects/inventory-sytem/handler"
+	"Golang-Projects/inventory-sytem/service"
+	"Golang-Projects/inventory-sytem/store"
 )
 
 func main() {

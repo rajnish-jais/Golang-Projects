@@ -8,7 +8,7 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/stretchr/testify/assert"
-	"tiger-sighting-app/pkg/models"
+	"tigerhall-kittens-app/pkg/models"
 )
 
 func TestGenerateToken(t *testing.T) {

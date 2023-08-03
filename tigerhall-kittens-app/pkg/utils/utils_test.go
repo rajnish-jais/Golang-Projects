@@ -1,13 +1,13 @@
-package utility
+package utils
 
 import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"tiger-sighting-app/pkg/models"
 
 	"github.com/stretchr/testify/assert"
+	"tigerhall-kittens-app/pkg/models"
 )
 
 func TestGetMails(t *testing.T) {

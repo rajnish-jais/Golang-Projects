@@ -1,6 +1,6 @@
 package store
 
-import "github.com/Golang-Projects/inventory-sytem/model"
+import "Golang-Projects/inventory-sytem/model"
 
 type order struct {
 	wh  map[string]Warehouse

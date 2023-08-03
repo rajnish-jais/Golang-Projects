@@ -3,7 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
-	"tiger-sighting-app/pkg/models"
+	"tigerhall-kittens-app/pkg/models"
 )
 
 type postgresRepository struct {
@@ -99,12 +99,7 @@ func (p *postgresRepository) CreateTigerSighting(tigerSighting *models.TigerSigh
 }
 
 func (p *postgresRepository) GetAllTigerSightings(tigerID int) ([]*models.TigerSighting, error) {
-	query := `
-       SELECT id, tiger_id, timestamp, lat, long, image,reporter_Email
-       FROM tiger_sightings
-       WHERE tiger_id = $1
-       ORDER BY timestamp DESC
-   `
+	query := "SELECT id, tiger_id, timestamp, lat, long, image,reporter_Email FROM tiger_sightings WHERE tiger_id = $1 ORDER BY timestamp DESC"
 
 	rows, err := p.db.Query(query, tigerID)
 	if err != nil {

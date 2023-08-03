@@ -6,7 +6,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
-	"tiger-sighting-app/pkg/models"
+	"tigerhall-kittens-app/pkg/models"
 )
 
 func TestPostgresRepository_CreateUser(t *testing.T) {
@@ -185,69 +185,6 @@ func TestPostgresRepository_CreateTigerSighting(t *testing.T) {
 	}
 }
 
-//func TestPostgresRepository_GetAllTigerSightings(t *testing.T) {
-//	db, mock, err := sqlmock.New()
-//	if err != nil {
-//		t.Fatalf("failed to create mock database connection: %v", err)
-//	}
-//	defer db.Close()
-//
-//	repo := NewPostgresRepository(db)
-//
-//	// Test case data
-//	tigerID := 1
-//	tigerSightingsData := []models.TigerSighting{
-//		{
-//			ID:            1,
-//			TigerID:       tigerID,
-//			Timestamp:     time.Now(),
-//			Lat:           12.3456,
-//			Long:          78.91011,
-//			Image:         []byte("sample-image-1"),
-//			ReporterEmail: "reporter1@example.com",
-//		},
-//		{
-//			ID:            2,
-//			TigerID:       tigerID,
-//			Timestamp:     time.Now(),
-//			Lat:           12.3456,
-//			Long:          78.91011,
-//			Image:         []byte("sample-image-2"),
-//			ReporterEmail: "reporter2@example.com",
-//		},
-//	}
-//
-//	// Mock the query to return multiple rows result
-//	mockRows := sqlmock.NewRows([]string{"id", "tiger_id", "timestamp", "lat", "long", "image", "reporter_Email"}).
-//		AddRow(tigerSightingsData[0].ID, tigerSightingsData[0].TigerID, tigerSightingsData[0].Timestamp, tigerSightingsData[0].Lat, tigerSightingsData[0].Long, tigerSightingsData[0].Image, tigerSightingsData[0].ReporterEmail).
-//		AddRow(tigerSightingsData[1].ID, tigerSightingsData[1].TigerID, tigerSightingsData[1].Timestamp, tigerSightingsData[1].Lat, tigerSightingsData[1].Long, tigerSightingsData[1].Image, tigerSightingsData[1].ReporterEmail)
-//	mock.ExpectQuery("SELECT id, tiger_id, timestamp, lat, long, image,reporter_Email FROM tiger_sightings WHERE tiger_id = $1 ORDER BY timestamp DESC").
-//		WithArgs(tigerID).
-//		WillReturnRows(mockRows)
-//
-//	// Call the function
-//	tigerSightings, err := repo.GetAllTigerSightings(tigerID)
-//
-//	// Check the result
-//	assert.NoError(t, err)
-//	assert.NotNil(t, tigerSightings)
-//	assert.Len(t, tigerSightings, len(tigerSightingsData))
-//	for i := range tigerSightings {
-//		assert.Equal(t, tigerSightingsData[i].ID, tigerSightings[i].ID)
-//		assert.Equal(t, tigerSightingsData[i].TigerID, tigerSightings[i].TigerID)
-//		assert.Equal(t, tigerSightingsData[i].Timestamp, tigerSightings[i].Timestamp)
-//		assert.Equal(t, tigerSightingsData[i].Lat, tigerSightings[i].Lat)
-//		assert.Equal(t, tigerSightingsData[i].Long, tigerSightings[i].Long)
-//		assert.Equal(t, tigerSightingsData[i].Image, tigerSightings[i].Image)
-//		assert.Equal(t, tigerSightingsData[i].ReporterEmail, tigerSightings[i].ReporterEmail)
-//	}
-//
-//	// Check if all expectations were met
-//	if err := mock.ExpectationsWereMet(); err != nil {
-//		t.Errorf("failed to meet expectations: %v", err)
-//	}
-//}
-
 func TestPostgresRepository_GetPreviousTigerSighting(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -294,66 +231,3 @@ func TestPostgresRepository_GetPreviousTigerSighting(t *testing.T) {
 		t.Errorf("failed to meet expectations: %v", err)
 	}
 }
-
-//func TestPostgresRepository_GetTigerSightingsByTigerID(t *testing.T) {
-//	db, mock, err := sqlmock.New()
-//	if err != nil {
-//		t.Fatalf("failed to create mock database connection: %v", err)
-//	}
-//	defer db.Close()
-//
-//	repo := NewPostgresRepository(db)
-//
-//	// Test case data
-//	tigerID := 1
-//	tigerSightingsData := []*models.TigerSighting{
-//		{
-//			ID:            1,
-//			TigerID:       tigerID,
-//			Timestamp:     time.Now(),
-//			Lat:           12.3456,
-//			Long:          78.91011,
-//			Image:         []byte("sample-image-1"),
-//			ReporterEmail: "reporter1@example.com",
-//		},
-//		{
-//			ID:            2,
-//			TigerID:       tigerID,
-//			Timestamp:     time.Now(),
-//			Lat:           12.3456,
-//			Long:          78.91011,
-//			Image:         []byte("sample-image-2"),
-//			ReporterEmail: "reporter2@example.com",
-//		},
-//	}
-//
-//	// Mock the query to return multiple rows result
-//	mockRows := sqlmock.NewRows([]string{"id", "tiger_id", "timestamp", "lat", "long", "image", "reporter_email"}).
-//		AddRow(tigerSightingsData[0].ID, tigerSightingsData[0].TigerID, tigerSightingsData[0].Timestamp, tigerSightingsData[0].Lat, tigerSightingsData[0].Long, tigerSightingsData[0].Image, tigerSightingsData[0].ReporterEmail).
-//		AddRow(tigerSightingsData[1].ID, tigerSightingsData[1].TigerID, tigerSightingsData[1].Timestamp, tigerSightingsData[1].Lat, tigerSightingsData[1].Long, tigerSightingsData[1].Image, tigerSightingsData[1].ReporterEmail)
-//	mock.ExpectQuery("SELECT id, tiger_id, timestamp, lat, long, image, reporter_email FROM tiger_sightings").
-//		WithArgs(tigerID).
-//		WillReturnRows(mockRows)
-//
-//	// Call the function
-//	tigerSightings, err := repo.GetTigerSightingsByTigerID(tigerID)
-//
-//	// Check the result
-//	assert.NoError(t, err)
-//	assert.NotNil(t, tigerSightings)
-//	assert.Len(t, tigerSightings, len(tigerSightingsData))
-//	for i := range tigerSightings {
-//		assert.Equal(t, tigerSightingsData[i].ID, tigerSightings[i].ID)
-//		assert.Equal(t, tigerSightingsData[i].TigerID, tigerSightings[i].TigerID)
-//		assert.Equal(t, tigerSightingsData[i].Timestamp, tigerSightings[i].Timestamp)
-//		assert.Equal(t, tigerSightingsData[i].Lat, tigerSightings[i].Lat)
-//		assert.Equal(t, tigerSightingsData[i].Long, tigerSightings[i].Long)
-//		assert.Equal(t, tigerSightingsData[i].Image, tigerSightings[i].Image)
-//		assert.Equal(t, tigerSightingsData[i].ReporterEmail, tigerSightings[i].ReporterEmail)
-//	}
-//
-//	// Check if all expectations were met
-//	if err := mock.ExpectationsWereMet(); err != nil {
-//		t.Errorf("failed to meet expectations: %v", err)
-//	}
-//}

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"tiger-sighting-app/pkg/auth"
+	"tigerhall-kittens-app/pkg/auth"
 )
 
 func TestAuthMiddleware_ValidToken(t *testing.T) {

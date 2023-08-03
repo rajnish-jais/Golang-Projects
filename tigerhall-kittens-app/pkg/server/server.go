@@ -4,12 +4,12 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"tiger-sighting-app/pkg/auth"
-	"tiger-sighting-app/pkg/handlers"
-	"tiger-sighting-app/pkg/middleware"
-	"tiger-sighting-app/pkg/service"
 
 	"github.com/gorilla/mux"
+	"tigerhall-kittens-app/pkg/auth"
+	"tigerhall-kittens-app/pkg/handlers"
+	"tigerhall-kittens-app/pkg/middleware"
+	"tigerhall-kittens-app/pkg/service"
 )
 
 type server struct {

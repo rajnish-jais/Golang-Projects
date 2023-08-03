@@ -1,8 +1,8 @@
 package service
 
 import (
-	"github.com/Golang-Projects/inventory-sytem/model"
-	"github.com/Golang-Projects/inventory-sytem/store"
+	"Golang-Projects/inventory-sytem/model"
+	"Golang-Projects/inventory-sytem/store"
 )
 
 type service struct {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/crypto/bcrypt"
-	"tiger-sighting-app/pkg/models"
+	"tigerhall-kittens-app/pkg/models"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"

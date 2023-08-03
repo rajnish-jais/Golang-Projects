@@ -1,8 +1,8 @@
 package repository
 
 import (
-	"tiger-sighting-app/pkg/models"
-	"tiger-sighting-app/pkg/repository/store"
+	"tigerhall-kittens-app/pkg/models"
+	"tigerhall-kittens-app/pkg/repository/store"
 )
 
 type TigerRepository interface {

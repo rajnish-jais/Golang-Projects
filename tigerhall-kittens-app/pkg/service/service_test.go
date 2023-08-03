@@ -2,12 +2,13 @@ package service
 
 import (
 	"errors"
-	"github.com/stretchr/testify/assert"
 	"sort"
 	"testing"
-	"tiger-sighting-app/pkg/auth"
-	"tiger-sighting-app/pkg/models"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"tigerhall-kittens-app/pkg/auth"
+	"tigerhall-kittens-app/pkg/models"
 )
 
 // mockTigerRepo is a mock implementation of the TigerRepository interface.
