@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"strconv"
@@ -15,6 +16,10 @@ import (
 	"tigerhall-kittens-app/pkg/service"
 	"tigerhall-kittens-app/pkg/utils"
 )
+
+const DefaultPageSize = 10
+
+type pagination map[string]interface{}
 
 type handlers struct {
 	Auth         *auth.Auth
@@ -98,13 +103,37 @@ func (h *handlers) CreateTigerHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) GetAllTigersHandler(w http.ResponseWriter, r *http.Request) {
-	tigers, err := h.TigerService.GetAllTigersService()
+	// Get the pagination parameters from the query string
+	pageStr := r.FormValue("page")
+	pageSizeStr := r.FormValue("pageSize")
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil || pageSize < 1 {
+		pageSize = DefaultPageSize
+	}
+
+	tigers, totalCount, err := h.TigerService.GetAllTigersService(page, pageSize)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	// Construct pagination response
+	paginationResponse := pagination{
+		"page":       page,
+		"pageSize":   pageSize,
+		"totalCount": totalCount,
+		"totalPages": int(math.Ceil(float64(totalCount) / float64(pageSize))),
+		"tigerList":  tigers,
+	}
+
 	// Respond with the tigers as JSON
-	utils.RespondWithJSON(w, http.StatusOK, tigers)
+	utils.RespondWithJSON(w, http.StatusOK, paginationResponse)
 }
 
 func (h *handlers) CreateTigerSightingHandler(w http.ResponseWriter, r *http.Request) {
@@ -193,7 +222,7 @@ func getProcessedImage(imageFile multipart.File) ([]byte, error) {
 	return resizedImage, nil
 }
 
-func (h *handlers) GetAllTigerSightingsHandler(w http.ResponseWriter, r *http.Request) {
+func (h *handlers) GetTigerSightingsByIDHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	tigerID := vars["id"]
 	if tigerID == "" {
@@ -208,12 +237,35 @@ func (h *handlers) GetAllTigerSightingsHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	tigerSightings, err := h.TigerService.GetAllTigerSightingsService(tigerIDInt)
+	// Get the pagination parameters from the query string
+	pageStr := r.FormValue("page")
+	pageSizeStr := r.FormValue("pageSize")
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil || pageSize < 1 {
+		pageSize = DefaultPageSize
+	}
+
+	tigerSightings, totalCount, err := h.TigerService.GetTigerSightingsByIDService(tigerIDInt, page, pageSize)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
+	// Construct pagination response
+	paginationResponse := pagination{
+		"page":           page,
+		"pageSize":       pageSize,
+		"totalCount":     totalCount,
+		"totalPages":     int(math.Ceil(float64(totalCount) / float64(pageSize))),
+		"tigerSightings": tigerSightings,
+	}
+
 	// Respond with the tiger sightings as JSON
-	utils.RespondWithJSON(w, http.StatusOK, tigerSightings)
+	utils.RespondWithJSON(w, http.StatusOK, paginationResponse)
 }

@@ -7,12 +7,13 @@ import (
 
 type TigerRepository interface {
 	CreateUser(user *models.User) error
-	CreateTiger(tiger *models.Tiger) error
-	GetAllTigers() ([]*models.Tiger, error)
 	GetUserByEmail(email string) (*models.User, error)
+	CreateTiger(tiger *models.Tiger) error
+	GetAllTigersWithPagination(page, pageSize int) ([]*models.Tiger, int, error)
 	CreateTigerSighting(tigerSighting *models.TigerSighting) error
-	GetAllTigerSightings(tigerID int) ([]*models.TigerSighting, error)
+	GetTigerSightingsByID(tigerID int) ([]*models.TigerSighting, error)
 	GetPreviousTigerSighting(tigerID int) (*models.TigerSighting, error)
+	GetTigerSightingsByIDWithPagination(tigerID, page, pageSize int) ([]*models.TigerSighting, int, error)
 }
 
 func NewPostgresRepository(connection string) (TigerRepository, error) {

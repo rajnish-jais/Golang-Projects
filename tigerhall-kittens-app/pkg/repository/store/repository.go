@@ -40,15 +40,19 @@ func (p *postgresRepository) CreateTiger(tiger *models.Tiger) error {
 	return nil
 }
 
-func (p *postgresRepository) GetAllTigers() ([]*models.Tiger, error) {
+func (p *postgresRepository) GetAllTigersWithPagination(page, pageSize int) ([]*models.Tiger, int, error) {
 	query := `
 		SELECT id, name, date_of_birth, last_seen, lat, long
 		FROM tigers
 		ORDER BY last_seen DESC
+		LIMIT $1 OFFSET $2
 	`
-	rows, err := p.db.Query(query)
+
+	offset := (page - 1) * pageSize
+
+	rows, err := p.db.Query(query, pageSize, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -57,12 +61,32 @@ func (p *postgresRepository) GetAllTigers() ([]*models.Tiger, error) {
 		tiger := &models.Tiger{}
 		err := rows.Scan(&tiger.ID, &tiger.Name, &tiger.DateOfBirth, &tiger.LastSeen, &tiger.Lat, &tiger.Long)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		tigers = append(tigers, tiger)
 	}
 
-	return tigers, nil
+	// Get total count of tigers (without pagination)
+	totalCount, err := p.GetTotalTigerCount()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return tigers, totalCount, nil
+}
+
+func (p *postgresRepository) GetTotalTigerCount() (int, error) {
+	query := `
+		SELECT COUNT(*) FROM tigers
+	`
+
+	var totalCount int
+	err := p.db.QueryRow(query).Scan(&totalCount)
+	if err != nil {
+		return 0, err
+	}
+
+	return totalCount, nil
 }
 
 func (p *postgresRepository) GetUserByEmail(email string) (*models.User, error) {
@@ -98,8 +122,8 @@ func (p *postgresRepository) CreateTigerSighting(tigerSighting *models.TigerSigh
 	return nil
 }
 
-func (p *postgresRepository) GetAllTigerSightings(tigerID int) ([]*models.TigerSighting, error) {
-	query := "SELECT id, tiger_id, timestamp, lat, long, image,reporter_Email FROM tiger_sightings WHERE tiger_id = $1 ORDER BY timestamp DESC"
+func (p *postgresRepository) GetTigerSightingsByID(tigerID int) ([]*models.TigerSighting, error) {
+	query := "SELECT id, tiger_id, timestamp, lat, long, image, reporter_Email FROM tiger_sightings WHERE tiger_id = $1 ORDER BY timestamp DESC"
 
 	rows, err := p.db.Query(query, tigerID)
 	if err != nil {
@@ -122,6 +146,61 @@ func (p *postgresRepository) GetAllTigerSightings(tigerID int) ([]*models.TigerS
 	}
 
 	return sightings, nil
+}
+
+func (p *postgresRepository) GetTigerSightingsByIDWithPagination(tigerID, page, pageSize int) ([]*models.TigerSighting, int, error) {
+	query := `
+		SELECT id, tiger_id, timestamp, lat, long, image, reporter_Email
+		FROM tiger_sightings
+		WHERE tiger_id = $1
+		ORDER BY timestamp DESC
+		OFFSET $2
+		LIMIT $3
+	`
+
+	offset := (page - 1) * pageSize
+
+	rows, err := p.db.Query(query, tigerID, offset, pageSize)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get tiger sightings: %v", err)
+	}
+	defer rows.Close()
+
+	sightings := []*models.TigerSighting{}
+	for rows.Next() {
+		var sighting models.TigerSighting
+		err := rows.Scan(&sighting.ID, &sighting.TigerID, &sighting.Timestamp, &sighting.Lat, &sighting.Long, &sighting.Image, &sighting.ReporterEmail)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan tiger sighting: %v", err)
+		}
+		sightings = append(sightings, &sighting)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error processing tiger sightings rows: %v", err)
+	}
+
+	// Get total count of tiger sightings (without pagination)
+	totalCount, err := p.GetTigerSightingsCountByID(tigerID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return sightings, totalCount, nil
+}
+
+func (p *postgresRepository) GetTigerSightingsCountByID(tigerID int) (int, error) {
+	query := `
+		SELECT COUNT(*) FROM tiger_sightings WHERE tiger_id = $1
+	`
+
+	var totalCount int
+	err := p.db.QueryRow(query, tigerID).Scan(&totalCount)
+	if err != nil {
+		return 0, err
+	}
+
+	return totalCount, nil
 }
 
 func (p *postgresRepository) GetPreviousTigerSighting(tigerID int) (*models.TigerSighting, error) {

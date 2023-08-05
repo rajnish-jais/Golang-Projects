@@ -35,7 +35,7 @@ func (s *server) SetupRoutes(tigerService service.TigerService, auth *auth.Auth)
 	s.router.Handle("/tiger/create", middleware.AuthMiddleware(auth, http.HandlerFunc(handlers.CreateTigerHandler))).Methods("POST")
 	s.router.HandleFunc("/tigers", handlers.GetAllTigersHandler).Methods("GET")
 	s.router.Handle("/tiger-sighting/create", middleware.AuthMiddleware(auth, http.HandlerFunc(handlers.CreateTigerSightingHandler))).Methods("POST")
-	s.router.HandleFunc("/tiger/{id}/sightings", handlers.GetAllTigerSightingsHandler).Methods("GET")
+	s.router.HandleFunc("/tiger/{id}/sightings", handlers.GetTigerSightingsByIDHandler).Methods("GET")
 }
 
 func (s *server) Start(port string) error {

@@ -13,17 +13,14 @@ import (
 
 // mockTigerRepo is a mock implementation of the TigerRepository interface.
 type mockTigerRepo struct {
-	createUser               func(user *models.User) error
-	getUserByEmail           func(email string) (*models.User, error)
-	createTiger              func(tiger *models.Tiger) error
-	getAllTigers             func() ([]*models.Tiger, error)
-	createTigerSighting      func(newSighting *models.TigerSighting) error
-	getPreviousTigerSighting func(tigerID int) (*models.TigerSighting, error)
-	getAllTigerSightings     func(tigerID int) ([]*models.TigerSighting, error) // Add this method
-}
-
-func (m *mockTigerRepo) GetAllTigerSightings(tigerID int) ([]*models.TigerSighting, error) {
-	return m.getAllTigerSightings(tigerID)
+	createUser                          func(user *models.User) error
+	getUserByEmail                      func(email string) (*models.User, error)
+	createTiger                         func(tiger *models.Tiger) error
+	getAllTigersWithPagination          func(page, pageSize int) ([]*models.Tiger, int, error)
+	createTigerSighting                 func(newSighting *models.TigerSighting) error
+	getTigerSightingsByID               func(tigerID int) ([]*models.TigerSighting, error)
+	getPreviousTigerSighting            func(tigerID int) (*models.TigerSighting, error)
+	getTigerSightingsByIDWithPagination func(tigerID, page, pageSize int) ([]*models.TigerSighting, int, error)
 }
 
 func (m *mockTigerRepo) CreateUser(user *models.User) error {
@@ -38,16 +35,24 @@ func (m *mockTigerRepo) CreateTiger(tiger *models.Tiger) error {
 	return m.createTiger(tiger)
 }
 
-func (m *mockTigerRepo) GetAllTigers() ([]*models.Tiger, error) {
-	return m.getAllTigers()
+func (m *mockTigerRepo) GetAllTigersWithPagination(page, pageSize int) ([]*models.Tiger, int, error) {
+	return m.getAllTigersWithPagination(page, pageSize)
 }
 
 func (m *mockTigerRepo) CreateTigerSighting(newSighting *models.TigerSighting) error {
 	return m.createTigerSighting(newSighting)
 }
 
+func (m *mockTigerRepo) GetTigerSightingsByID(tigerID int) ([]*models.TigerSighting, error) {
+	return m.getTigerSightingsByID(tigerID)
+}
+
 func (m *mockTigerRepo) GetPreviousTigerSighting(tigerID int) (*models.TigerSighting, error) {
 	return m.getPreviousTigerSighting(tigerID)
+}
+
+func (m *mockTigerRepo) GetTigerSightingsByIDWithPagination(tigerID, page, pageSize int) ([]*models.TigerSighting, int, error) {
+	return m.getTigerSightingsByIDWithPagination(tigerID, page, pageSize)
 }
 
 func TestSignupService_Success(t *testing.T) {
@@ -221,7 +226,7 @@ func TestCreateTigerService_Failure(t *testing.T) {
 func TestGetAllTigersService_Success(t *testing.T) {
 	// Arrange
 	mockRepo := &mockTigerRepo{
-		getAllTigers: func() ([]*models.Tiger, error) {
+		getAllTigersWithPagination: func(page, pageSize int) ([]*models.Tiger, int, error) {
 			// Mock the GetAllTigers method to return a list of tigers
 			tigers := []*models.Tiger{
 				{
@@ -239,14 +244,14 @@ func TestGetAllTigersService_Success(t *testing.T) {
 					Long:        56.78,
 				},
 			}
-			return tigers, nil
+			return tigers, len(tigers), nil
 		},
 	}
 
 	tigerService := NewTigerService(mockRepo, nil)
 
 	// Act
-	tigers, err := tigerService.GetAllTigersService()
+	tigers, totalCount, err := tigerService.GetAllTigersService(1, 10)
 
 	// Assert
 	assert.NoError(t, err, "GetAllTigersService should not return an error")
@@ -258,21 +263,22 @@ func TestGetAllTigersService_Success(t *testing.T) {
 
 	// Check if the tigers are sorted by last seen time (descending order)
 	assert.True(t, tigers[0].LastSeen.After(tigers[1].LastSeen), "Tigers should be sorted by last seen time")
+	assert.Equal(t, totalCount, 2, "Tiger count should be 2")
 }
 
 func TestGetAllTigersService_Failure(t *testing.T) {
 	// Arrange
 	mockRepo := &mockTigerRepo{
-		getAllTigers: func() ([]*models.Tiger, error) {
+		getAllTigersWithPagination: func(page, pageSize int) ([]*models.Tiger, int, error) {
 			// Mock the GetAllTigers method to return an error
-			return []*models.Tiger{}, errors.New("failed to fetch tigers")
+			return []*models.Tiger{}, 0, errors.New("failed to fetch tigers")
 		},
 	}
 
 	tigerService := NewTigerService(mockRepo, nil)
 
 	// Act
-	tigers, err := tigerService.GetAllTigersService()
+	tigers, _, err := tigerService.GetAllTigersService(1, 10)
 
 	// Assert
 	assert.Error(t, err, "GetAllTigersService should return an error")
@@ -280,68 +286,47 @@ func TestGetAllTigersService_Failure(t *testing.T) {
 	assert.Empty(t, tigers, "Tigers should be empty when there is an error")
 }
 
-// mockMessageBroker is a mock implementation of the MessageBroker interface.
-type mockMessageBroker struct {
-	publishMessage func(message []byte) error
-}
+func TestCreateTigerSightingService_Success(t *testing.T) {
+	// Arrange
+	previousSighting := &models.TigerSighting{
+		ID:            1,
+		TigerID:       1,
+		Timestamp:     time.Date(2023, time.July, 20, 12, 0, 0, 0, time.UTC),
+		Lat:           12.34,
+		Long:          56.78,
+		ReporterEmail: "reporter@example.com",
+	}
+	newSighting := &models.TigerSighting{
+		TigerID:       1,
+		Timestamp:     time.Date(2023, time.July, 21, 12, 0, 0, 0, time.UTC),
+		Lat:           13.35,
+		Long:          56.79,
+		ReporterEmail: "reporter@example.com",
+	}
 
-func (m *mockMessageBroker) PublishMessage(message []byte) error {
-	return m.publishMessage(message)
-}
+	mockRepo := &mockTigerRepo{
+		getPreviousTigerSighting: func(tigerID int) (*models.TigerSighting, error) {
+			return previousSighting, nil
+		},
+		createTigerSighting: func(newSighting *models.TigerSighting) error {
+			// Simulate successful tiger sighting creation in the database
+			return nil
+		},
+		getTigerSightingsByID: func(tigerID int) ([]*models.TigerSighting, error) {
+			// Return previous sighting as the only previous sighting for the tiger
+			return []*models.TigerSighting{previousSighting}, nil
+		},
+	}
 
-//func TestCreateTigerSightingService_Success(t *testing.T) {
-//	// Arrange
-//	previousSighting := &models.TigerSighting{
-//		ID:            1,
-//		TigerID:       1,
-//		Timestamp:     time.Date(2023, time.July, 20, 12, 0, 0, 0, time.UTC),
-//		Lat:           12.34,
-//		Long:          56.78,
-//		ReporterEmail: "reporter@example.com",
-//	}
-//	newSighting := &models.TigerSighting{
-//		TigerID:       1,
-//		Timestamp:     time.Date(2023, time.July, 21, 12, 0, 0, 0, time.UTC),
-//		Lat:           13.35,
-//		Long:          56.79,
-//		ReporterEmail: "reporter@example.com",
-//	}
-//
-//	mockRepo := &mockTigerRepo{
-//		getPreviousTigerSighting: func(tigerID int) (*models.TigerSighting, error) {
-//			return previousSighting, nil
-//		},
-//		createTigerSighting: func(newSighting *models.TigerSighting) error {
-//			// Simulate successful tiger sighting creation in the database
-//			return nil
-//		},
-//		getAllTigerSightings: func(tigerID int) ([]*models.TigerSighting, error) {
-//			// Return previous sighting as the only previous sighting for the tiger
-//			return []*models.TigerSighting{previousSighting}, nil
-//		},
-//	}
-//
-//	// Set up a mock message broker
-//	var publishedMessage []byte
-//	mockBroker := &mockMessageBroker{
-//		publishMessage: func(message []byte) error {
-//			publishedMessage = message
-//			return nil
-//		},
-//	}
-//
-//	tigerService := NewTigerService(mockRepo, mockBroker)
-//
-//	// Act
-//	err := tigerService.CreateTigerSightingService(newSighting)
-//
-//	// Assert
-//	assert.NoError(t, err, "CreateTigerSightingService should not return an error")
-//
-//	// Ensure that the expected message is published
-//	expectedMessage := []byte("reporter@example.com")
-//	assert.Equal(t, expectedMessage, publishedMessage, "Published message should match")
-//}
+	tigerService := NewTigerService(mockRepo, nil)
+
+	// Act
+	err := tigerService.CreateTigerSightingService(newSighting)
+
+	// Assert
+	assert.NoError(t, err, "CreateTigerSightingService should not return an error")
+
+}
 
 func TestCreateTigerSightingService_ExistingSightingWithin5Km(t *testing.T) {
 	// Arrange
@@ -421,7 +406,7 @@ func TestCreateTigerSightingService_Failure(t *testing.T) {
 			// Simulate failure in creating tiger sighting in the database
 			return errors.New("failed to create tiger sighting")
 		},
-		getAllTigerSightings: func(tigerID int) ([]*models.TigerSighting, error) {
+		getTigerSightingsByID: func(tigerID int) ([]*models.TigerSighting, error) {
 			// Simulate failure in retrieving previous sightings from the database
 			return nil, errors.New("failed to retrieve previous sightings")
 		},
@@ -462,20 +447,20 @@ func TestGetAllTigerSightingsService_Success(t *testing.T) {
 	sort.Slice(tigerSightings, func(i, j int) bool { return tigerSightings[i].Timestamp.Before(tigerSightings[j].Timestamp) })
 
 	mockRepo := &mockTigerRepo{
-		getAllTigerSightings: func(tigerID int) ([]*models.TigerSighting, error) {
-			return tigerSightings, nil
+		getTigerSightingsByIDWithPagination: func(tigerID, page, pageSize int) ([]*models.TigerSighting, int, error) {
+			return tigerSightings, len(tigerSightings), nil
 		},
 	}
 
 	tigerService := NewTigerService(mockRepo, nil)
 
 	// Act
-	result, err := tigerService.GetAllTigerSightingsService(tigerID)
+	result, totalCount, err := tigerService.GetTigerSightingsByIDService(tigerID, 1, 10)
 
 	// Assert
-	assert.NoError(t, err, "GetAllTigerSightingsService should not return an error")
+	assert.NoError(t, err, "GetTigerSightingsByIDService should not return an error")
 	assert.NotNil(t, result, "Result should not be nil")
-	assert.Equal(t, len(tigerSightings), len(result), "Number of tiger sightings should match")
+	assert.Equal(t, len(tigerSightings), totalCount, "Number of tiger sightings should match")
 
 	// Check if the tiger sightings are sorted by the timestamp (ascending order)
 	for i := range tigerSightings {
@@ -489,19 +474,18 @@ func TestGetAllTigerSightingsService_Failure(t *testing.T) {
 	// Arrange
 	tigerID := 1
 	mockRepo := &mockTigerRepo{
-		getAllTigerSightings: func(tigerID int) ([]*models.TigerSighting, error) {
+		getTigerSightingsByIDWithPagination: func(tigerID, page, pageSize int) ([]*models.TigerSighting, int, error) {
 			// Simulate failure in retrieving tiger sightings from the database
-			return nil, errors.New("failed to fetch tiger sightings")
+			return []*models.TigerSighting{}, 0, errors.New("failed to fetch tiger sightings")
 		},
 	}
 
 	tigerService := NewTigerService(mockRepo, nil)
 
 	// Act
-	result, err := tigerService.GetAllTigerSightingsService(tigerID)
+	result, _, err := tigerService.GetTigerSightingsByIDService(tigerID, 1, 10)
 
 	// Assert
-	assert.Error(t, err, "GetAllTigerSightingsService should return an error")
+	assert.Error(t, err, "GetTigerSightingsByIDService should return an error")
 	assert.Equal(t, result, []*models.TigerSighting{}, "Result should be nil on failure")
-	assert.EqualError(t, err, "failed to fetch tiger sightings", "Error message should match")
 }

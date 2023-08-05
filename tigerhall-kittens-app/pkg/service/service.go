@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"sort"
 
@@ -28,9 +29,9 @@ type TigerService interface {
 	SignupService(*models.User) error
 	LoginService(models.LoginCredentials) (*models.User, error)
 	CreateTigerService(tiger models.Tiger) error
-	GetAllTigersService() ([]*models.Tiger, error)
+	GetAllTigersService(page, size int) ([]*models.Tiger, int, error)
 	CreateTigerSightingService(*models.TigerSighting) error
-	GetAllTigerSightingsService(int) ([]*models.TigerSighting, error)
+	GetTigerSightingsByIDService(tigerID, page, pageSize int) ([]*models.TigerSighting, int, error)
 }
 
 func (s service) SignupService(user *models.User) error {
@@ -70,19 +71,24 @@ func (s service) CreateTigerService(tiger models.Tiger) error {
 	return nil
 }
 
-func (s service) GetAllTigersService() ([]*models.Tiger, error) {
-	// Get a list of all tigers from the database
-	tigers, err := s.TigerRepo.GetAllTigers()
+func (s service) GetAllTigersService(page, size int) ([]*models.Tiger, int, error) {
+	// Get a list of all tigers from the database with pagination
+	tigers, totalCount, err := s.TigerRepo.GetAllTigersWithPagination(page, size)
 	if err != nil {
-		return []*models.Tiger{}, errors.New("failed to fetch tigers")
+		return []*models.Tiger{}, totalCount, errors.New("failed to fetch tigers")
 	}
 
-	// Sort the tigers by the last seen time (if the last seen time is a time.Time field)
+	// Sort the tigers by the last seen time
 	sort.Slice(tigers, func(i, j int) bool { return tigers[i].LastSeen.After(tigers[j].LastSeen) })
-	return tigers, nil
+	return tigers, totalCount, nil
 }
 
 func (s service) CreateTigerSightingService(newSighting *models.TigerSighting) error {
+	// Check if the required fields are provided
+	if newSighting.Lat == 0 || newSighting.Long == 0 || newSighting.Timestamp.IsZero() || newSighting.ReporterEmail == "" {
+		return errors.New("latitude, longitude, timestamp and reporterEmail are required")
+	}
+
 	// Check if the tiger has a previous sighting
 	previousSighting, err := s.TigerRepo.GetPreviousTigerSighting(newSighting.TigerID)
 	if err != nil {
@@ -101,41 +107,38 @@ func (s service) CreateTigerSightingService(newSighting *models.TigerSighting) e
 		}
 	}
 
-	// Check if the required fields are provided
-	if newSighting.Lat == 0 || newSighting.Long == 0 || newSighting.Timestamp.IsZero() || newSighting.ReporterEmail == "" {
-		return errors.New("latitude, longitude, timestamp and reporterEmail are required")
-	}
-
 	// Create the tiger sighting in the database
 	err = s.TigerRepo.CreateTigerSighting(newSighting)
 	if err != nil {
 		return errors.New("failed to create tiger sighting")
 	}
 
-	previousSightings, err := s.TigerRepo.GetAllTigerSightings(newSighting.TigerID)
+	previousSightings, err := s.TigerRepo.GetTigerSightingsByID(newSighting.TigerID)
 	if err != nil {
 		return errors.New("failed to retrieve previous sightings")
 	}
 
 	// Publish a new tiger sighting message
-	if err := s.messageBroker.PublishMessage(utils.GetMails(previousSightings)); err != nil {
-		log.Printf("failed to publish message: %v", err)
+	if s.messageBroker != nil {
+		if err := s.messageBroker.PublishMessage(utils.GetMails(previousSightings)); err != nil {
+			log.Printf("failed to publish message: %v", err)
+		}
 	}
 
 	return nil
 }
 
-func (s service) GetAllTigerSightingsService(tigerID int) ([]*models.TigerSighting, error) {
-	// Get a list of all tiger sightings for the specific tiger from the database
-	tigerSightings, err := s.TigerRepo.GetAllTigerSightings(tigerID)
+func (s service) GetTigerSightingsByIDService(tigerID, page, pageSize int) ([]*models.TigerSighting, int, error) {
+	// Get a list of all tiger sightings for the specific tiger from the database with pagination
+	tigerSightings, totalCount, err := s.TigerRepo.GetTigerSightingsByIDWithPagination(tigerID, page, pageSize)
 	if err != nil {
-
-		return []*models.TigerSighting{}, errors.New("failed to fetch tiger sightings")
+		return []*models.TigerSighting{}, totalCount, fmt.Errorf("error: %v", err)
 	}
 
-	// Sort the tiger sightings by date (if the timestamp is a time.Time field)
+	// Sort the tiger sightings by date
 	sort.Slice(tigerSightings, func(i, j int) bool {
 		return tigerSightings[i].Timestamp.After(tigerSightings[j].Timestamp)
 	})
-	return tigerSightings, nil
+
+	return tigerSightings, totalCount, nil
 }

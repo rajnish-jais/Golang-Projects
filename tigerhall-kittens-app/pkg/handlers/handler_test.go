@@ -20,14 +20,14 @@ import (
 
 // mockTigerService is a mock implementation of the TigerService interface.
 type mockTigerService struct {
-	signupService               func(user *models.User) error
-	loginService                func(credentials models.LoginCredentials) (*models.User, error)
-	createTigerService          func(tiger models.Tiger) error
-	getAllTigersService         func() ([]*models.Tiger, error)
-	createTigerSighting         func(newSighting *models.TigerSighting) error
-	getAllTigerSightings        func(tigerID int) ([]*models.TigerSighting, error)
-	createTigerSightingService  func(newSighting *models.TigerSighting) error
-	getAllTigerSightingsService func(tigerID int) ([]*models.TigerSighting, error)
+	signupService                func(user *models.User) error
+	loginService                 func(credentials models.LoginCredentials) (*models.User, error)
+	createTigerService           func(tiger models.Tiger) error
+	getAllTigersService          func(page, pageSize int) ([]*models.Tiger, int, error)
+	createTigerSighting          func(newSighting *models.TigerSighting) error
+	getAllTigerSightings         func(tigerID int) ([]*models.TigerSighting, error)
+	createTigerSightingService   func(newSighting *models.TigerSighting) error
+	getTigerSightingsByIDService func(tigerID, page, pageSize int) ([]*models.TigerSighting, int, error)
 }
 
 func (m *mockTigerService) SignupService(user *models.User) error {
@@ -42,16 +42,16 @@ func (m *mockTigerService) CreateTigerService(tiger models.Tiger) error {
 	return m.createTigerService(tiger)
 }
 
-func (m *mockTigerService) GetAllTigersService() ([]*models.Tiger, error) {
-	return m.getAllTigersService()
+func (m *mockTigerService) GetAllTigersService(page, pageSize int) ([]*models.Tiger, int, error) {
+	return m.getAllTigersService(page, pageSize)
 }
 
 func (m *mockTigerService) CreateTigerSightingService(newSighting *models.TigerSighting) error {
 	return m.createTigerSightingService(newSighting)
 }
 
-func (m *mockTigerService) GetAllTigerSightingsService(tigerID int) ([]*models.TigerSighting, error) {
-	return m.getAllTigerSightingsService(tigerID)
+func (m *mockTigerService) GetTigerSightingsByIDService(tigerID, page, pageSize int) ([]*models.TigerSighting, int, error) {
+	return m.getTigerSightingsByIDService(tigerID, page, pageSize)
 }
 
 func TestSignupHandler_Success(t *testing.T) {
@@ -373,16 +373,16 @@ func TestGetAllTigersHandler_Success(t *testing.T) {
 	}
 
 	mockService := &mockTigerService{
-		getAllTigersService: func() ([]*models.Tiger, error) {
+		getAllTigersService: func(int, int) ([]*models.Tiger, int, error) {
 			// Simulate a successful retrieval of tigers
-			return tigers, nil
+			return tigers, len(tigers), nil
 		},
 	}
 
 	auth := auth.NewAuth("test_secret_key")
 	handler := NewHandlers(mockService, log.Default(), auth)
 
-	req, err := http.NewRequest(http.MethodGet, "/tigers", nil)
+	req, err := http.NewRequest(http.MethodGet, "/tigers?page=1&pageSize=10", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,24 +393,25 @@ func TestGetAllTigersHandler_Success(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, http.StatusOK, rr.Code, "Status code should be 200")
-	var response []*models.Tiger
+	var response map[string]interface{}
 	err = json.Unmarshal(rr.Body.Bytes(), &response)
 	assert.NoError(t, err, "Error while unmarshaling response")
+	assert.Equal(t, float64(2), response["totalCount"], "Expected 2 tigers in response")
 }
 
 func TestGetAllTigersHandler_InternalServerError(t *testing.T) {
 	// Arrange
 	mockService := &mockTigerService{
-		getAllTigersService: func() ([]*models.Tiger, error) {
+		getAllTigersService: func(int, int) ([]*models.Tiger, int, error) {
 			// Simulate an error during retrieval of tigers
-			return nil, errors.New("failed to fetch tigers")
+			return nil, 0, errors.New("failed to fetch tigers")
 		},
 	}
 
 	auth := auth.NewAuth("test_secret_key")
 	handler := NewHandlers(mockService, log.Default(), auth)
 
-	req, err := http.NewRequest(http.MethodGet, "/tigers", nil)
+	req, err := http.NewRequest(http.MethodGet, "/tigers?page=1&pageSize=10", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -535,10 +536,9 @@ func TestCreateTigerSightingHandler_InternalServerError(t *testing.T) {
 func TestGetAllTigerSightingsHandler_Success(t *testing.T) {
 	// Arrange
 	mockService := &mockTigerService{
-		getAllTigerSightingsService: func(tigerID int) ([]*models.TigerSighting, error) {
+		getTigerSightingsByIDService: func(tigerID, page, pageSize int) ([]*models.TigerSighting, int, error) {
 			// Simulate a successful retrieval of tiger sightings
-			// Return a list of dummy tiger sightings
-			return []*models.TigerSighting{
+			tigerSightings := []*models.TigerSighting{
 				{
 					ID:        1,
 					TigerID:   1,
@@ -553,7 +553,9 @@ func TestGetAllTigerSightingsHandler_Success(t *testing.T) {
 					Lat:       12.346,
 					Long:      67.891,
 				},
-			}, nil
+			}
+
+			return tigerSightings, len(tigerSightings), nil
 		},
 	}
 
@@ -561,7 +563,7 @@ func TestGetAllTigerSightingsHandler_Success(t *testing.T) {
 	handler := NewHandlers(mockService, log.Default(), auth)
 
 	// Prepare a request with "id" query parameter
-	req, err := http.NewRequest(http.MethodGet, "/tiger_sightings?id=1", nil)
+	req, err := http.NewRequest(http.MethodGet, "tiger/:id/sightings?page=1&pageSize=2", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -572,15 +574,16 @@ func TestGetAllTigerSightingsHandler_Success(t *testing.T) {
 	req = mux.SetURLVars(req, map[string]string{"id": "1"})
 
 	// Act
-	handler.GetAllTigerSightingsHandler(rr, req)
+	handler.GetTigerSightingsByIDHandler(rr, req)
 
 	// Assert
 	assert.Equal(t, http.StatusOK, rr.Code, "Status code should be 200")
 
-	var response []*models.TigerSighting
+	var response map[string]interface{}
+
 	err = json.Unmarshal(rr.Body.Bytes(), &response)
 	assert.NoError(t, err, "Error while unmarshaling response")
-	assert.Equal(t, 2, len(response), "Expected 2 tiger sightings in response")
+	assert.Equal(t, float64(2), response["totalCount"], "Expected 2 tiger sightings in response")
 }
 
 func TestGetAllTigerSightingsHandler_InvalidID(t *testing.T) {
@@ -591,7 +594,7 @@ func TestGetAllTigerSightingsHandler_InvalidID(t *testing.T) {
 	handler := NewHandlers(mockService, log.Default(), auth)
 
 	// Prepare a request with invalid "id" query parameter (not an integer)
-	req, err := http.NewRequest(http.MethodGet, "/tiger_sightings?id=invalid", nil)
+	req, err := http.NewRequest(http.MethodGet, "/tiger/:id/sightings?page=1&pageSize=10", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -602,7 +605,7 @@ func TestGetAllTigerSightingsHandler_InvalidID(t *testing.T) {
 	req = mux.SetURLVars(req, map[string]string{"id": "invalid"})
 
 	// Act
-	handler.GetAllTigerSightingsHandler(rr, req)
+	handler.GetTigerSightingsByIDHandler(rr, req)
 
 	// Assert
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Status code should be 400")
@@ -615,9 +618,9 @@ func TestGetAllTigerSightingsHandler_InvalidID(t *testing.T) {
 func TestGetAllTigerSightingsHandler_InternalServerError(t *testing.T) {
 	// Arrange
 	mockService := &mockTigerService{
-		getAllTigerSightingsService: func(tigerID int) ([]*models.TigerSighting, error) {
+		getTigerSightingsByIDService: func(tigerID, page, pageSize int) ([]*models.TigerSighting, int, error) {
 			// Simulate an error during retrieval of tiger sightings
-			return nil, errors.New("failed to retrieve tiger sightings")
+			return nil, 0, errors.New("failed to retrieve tiger sightings")
 		},
 	}
 
@@ -625,7 +628,7 @@ func TestGetAllTigerSightingsHandler_InternalServerError(t *testing.T) {
 	handler := NewHandlers(mockService, log.Default(), auth)
 
 	// Prepare a request with "id" query parameter
-	req, err := http.NewRequest(http.MethodGet, "/tiger_sightings?id=1", nil)
+	req, err := http.NewRequest(http.MethodGet, "/tiger/:id/sightings?page=1&pageSize=10", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -636,7 +639,7 @@ func TestGetAllTigerSightingsHandler_InternalServerError(t *testing.T) {
 	req = mux.SetURLVars(req, map[string]string{"id": "1"})
 
 	// Act
-	handler.GetAllTigerSightingsHandler(rr, req)
+	handler.GetTigerSightingsByIDHandler(rr, req)
 
 	// Assert
 	assert.Equal(t, http.StatusInternalServerError, rr.Code, "Status code should be 500")
