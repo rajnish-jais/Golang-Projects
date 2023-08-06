@@ -90,5 +90,4 @@ func TestServer_Start(t *testing.T) {
 	// Assert
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "Expected status code 404")
 
-	// Note: This is just an example of how to test server start. For more comprehensive tests, you can create additional test cases to cover other routes and request methods.
 }

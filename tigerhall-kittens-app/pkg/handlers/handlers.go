@@ -1,12 +1,17 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"image"
+	"image/jpeg"
 	"io/ioutil"
 	"log"
 	"math"
 	"mime/multipart"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -203,8 +208,7 @@ func (h *handlers) CreateTigerSightingHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Respond with the newly created tiger sighting
-	utils.RespondWithJSON(w, http.StatusCreated, newSighting)
+	utils.RespondWithJSON(w, http.StatusCreated, map[string]interface{}{"message": "success"})
 }
 
 func getProcessedImage(imageFile multipart.File) ([]byte, error) {
@@ -255,6 +259,32 @@ func (h *handlers) GetTigerSightingsByIDHandler(w http.ResponseWriter, r *http.R
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	for _, t := range tigerSightings {
+		img, _, err := image.Decode(bytes.NewReader(t.Image))
+		if err != nil {
+			fmt.Errorf("Error decoding image data: %v", err)
+		}
+
+		// Save the image to a new file
+		fileName := fmt.Sprintf("%v_%v_%v_%v.jpeg", t.TigerID, t.Lat, t.Long, t.ReporterEmail)
+		outputFile, err := os.Create(fileName) // we could have store it in S3 bucket, for simplicity storing it here.
+		if err != nil {
+			fmt.Errorf("Error creating output file: %v", err)
+		}
+		defer outputFile.Close()
+
+		// Save the image in JPEG format
+		if img != nil {
+			err = jpeg.Encode(outputFile, img, nil)
+			if err != nil {
+				fmt.Errorf("Error encoding image data to file: %v", err)
+			}
+		}
+
+		t.ImageFile = fileName
+		t.Image = nil
 	}
 
 	// Construct pagination response
