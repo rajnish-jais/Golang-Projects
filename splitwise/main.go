@@ -82,118 +82,223 @@ import (
 	"fmt"
 )
 
-// Expense represents a single expense
+type User struct {
+	Name string
+}
+
+type Share struct {
+	User   string
+	Amount float64
+}
+
 type Expense struct {
-	PaidBy    string
-	Amount    int
-	Users     []string
-	ShareType string
-	Shares    map[string]int
+	Payer        string
+	Amount       float64
+	Participants []string
+	Shares       []Share
+	Metadata     map[string]string
 }
 
-// UserSummary represents a summary for an individual user
-type UserSummary struct {
-	Owes      map[string]int
-	OwedBy    map[string]int
-	TotalOwes int
-	TotalOwed int
-}
-
-// ExpenseSystem represents the expense sharing system
 type ExpenseSystem struct {
-	Expenses      []Expense
-	UserSummaries map[string]UserSummary
-	UserExpenses  map[string][]Expense
+	Users    map[string]User
+	Expenses []Expense
+	Balances map[string]map[string]float64
 }
 
-// AddExpense adds a new expense to the system
-func (es *ExpenseSystem) AddExpense(paidBy string, amount int, users []string, shareType string, shares map[string]int) {
+func NewExpenseSystem() *ExpenseSystem {
+	return &ExpenseSystem{
+		Users:    make(map[string]User),
+		Balances: make(map[string]map[string]float64),
+	}
+}
+
+func (es *ExpenseSystem) AddUser(name string) {
+	es.Users[name] = User{Name: name}
+	if es.Balances[name] == nil {
+		es.Balances[name] = make(map[string]float64)
+	}
+}
+
+func (es *ExpenseSystem) AddExpense(payer string, amount float64, participants []string, shareType string, shares map[string]float64, metadata map[string]string) {
+	// Compute shares
+	var expenseShares []Share
+	if shareType == "equal" {
+		equalShare := amount / float64(len(participants)+1)
+		for _, participant := range participants {
+			expenseShares = append(expenseShares, Share{User: participant, Amount: equalShare})
+		}
+	} else if shareType == "exact" {
+		for user, share := range shares {
+			expenseShares = append(expenseShares, Share{User: user, Amount: share})
+		}
+	} else if shareType == "percentage" {
+		for user, percentage := range shares {
+			shareAmount := (percentage / 100) * amount
+			expenseShares = append(expenseShares, Share{User: user, Amount: shareAmount})
+		}
+	}
+
+	// Add expense
 	expense := Expense{
-		PaidBy:    paidBy,
-		Amount:    amount,
-		Users:     users,
-		ShareType: shareType,
-		Shares:    shares,
+		Payer:        payer,
+		Amount:       amount,
+		Participants: participants,
+		Shares:       expenseShares,
+		Metadata:     metadata,
 	}
 	es.Expenses = append(es.Expenses, expense)
 
-	// Update UserSummaries and UserExpenses
-	if _, ok := es.UserSummaries[paidBy]; !ok {
-		es.UserSummaries[paidBy] = UserSummary{Owes: make(map[string]int), OwedBy: make(map[string]int)}
+	// Update balances
+	for _, share := range expenseShares {
+		if es.Balances[share.User] == nil {
+			es.Balances[share.User] = make(map[string]float64)
+		}
+		if es.Balances[payer] == nil {
+			es.Balances[payer] = make(map[string]float64)
+		}
+		es.Balances[share.User][payer] += share.Amount
+		es.Balances[payer][share.User] -= share.Amount
 	}
+}
 
-	for _, u := range users {
-		if u != paidBy {
-			if _, ok := es.UserSummaries[u]; !ok {
-				es.UserSummaries[u] = UserSummary{Owes: make(map[string]int), OwedBy: make(map[string]int)}
-			}
+func (es *ExpenseSystem) ListUserExpenses(userName string) []Expense {
+	var userExpenses []Expense
+	for _, expense := range es.Expenses {
+		if expense.Payer == userName || contains(expense.Participants, userName) {
+			userExpenses = append(userExpenses, expense)
+		}
+	}
+	return userExpenses
+}
 
-			// Temporarily store the summary
-			tempSummary := es.UserSummaries[paidBy]
-			tempSummary.TotalOwes += shares[u]
-			tempSummary.Owes[u] += shares[u]
-
-			es.UserSummaries[paidBy] = tempSummary
-
-			tempSummary = es.UserSummaries[u]
-			tempSummary.TotalOwed += shares[u]
-			tempSummary.OwedBy[paidBy] += shares[u]
-
-			es.UserSummaries[u] = tempSummary
-
-			// Update UserExpenses
-			es.UserExpenses[u] = append(es.UserExpenses[u], expense)
+func (es *ExpenseSystem) GenerateIndividualSummary(userName string) {
+	for user, balance := range es.Balances[userName] {
+		if balance > 0 {
+			fmt.Printf("%s owes %s %.2f\n", user, userName, balance)
+		} else if balance < 0 {
+			fmt.Printf("%s is owed by %s %.2f\n", userName, user, -balance)
 		}
 	}
 }
 
-// GenerateIndividualSummary generates a summary for an individual user
-func (es *ExpenseSystem) GenerateIndividualSummary(user string) UserSummary {
-	return es.UserSummaries[user]
+func (es *ExpenseSystem) SettleFunds(user1, user2 string) {
+	balance1 := es.Balances[user1][user2]
+	balance2 := es.Balances[user2][user1]
+
+	if balance1 > 0 && balance2 < 0 {
+		if balance1+balance2 > 0 {
+			fmt.Printf("%s should pay %s %.2f\n", user2, user1, -balance2)
+			es.Balances[user1][user2] += balance2
+			es.Balances[user2][user1] = 0
+		} else {
+			fmt.Printf("%s should pay %s %.2f\n", user2, user1, balance1)
+			es.Balances[user2][user1] += balance1
+			es.Balances[user1][user2] = 0
+		}
+	} else if balance1 < 0 && balance2 > 0 {
+		if balance2+balance1 > 0 {
+			fmt.Printf("%s should pay %s %.2f\n", user1, user2, -balance1)
+			es.Balances[user2][user1] += balance1
+			es.Balances[user1][user2] = 0
+		} else {
+			fmt.Printf("%s should pay %s %.2f\n", user1, user2, balance2)
+			es.Balances[user1][user2] += balance2
+			es.Balances[user2][user1] = 0
+		}
+	} else if balance1 > 0 && balance2 == 0 {
+		fmt.Printf("%s should pay %s %.2f\n", user2, user1, balance1)
+		es.Balances[user1][user2] = 0
+		es.Balances[user2][user1] = 0
+	} else if balance1 == 0 && balance2 > 0 {
+		fmt.Printf("%s should pay %s %.2f\n", user1, user2, balance2)
+		es.Balances[user1][user2] = 0
+		es.Balances[user2][user1] = 0
+	}
 }
 
-// ListUserExpenses lists all the expenses a given user is involved in
-func (es *ExpenseSystem) ListUserExpenses(user string) []Expense {
-	return es.UserExpenses[user]
+func (es *ExpenseSystem) GenerateOverallSummary() {
+	for user1, user1Balances := range es.Balances {
+		for user2, balance := range user1Balances {
+			if balance > 0 {
+				fmt.Printf("%s owes %s %.2f\n", user2, user1, balance)
+			}
+		}
+	}
+}
+
+func contains(slice []string, item string) bool {
+	for _, element := range slice {
+		if element == item {
+			return true
+		}
+	}
+	return false
 }
 
 func main() {
-	expenseSystem := ExpenseSystem{
-		UserSummaries: make(map[string]UserSummary),
-		UserExpenses:  make(map[string][]Expense),
+	es := NewExpenseSystem()
+
+	es.AddUser("A")
+	es.AddUser("B")
+	es.AddUser("C")
+	es.AddUser("D")
+
+	es.AddExpense("A", 1000, []string{"B", "C", "D"}, "equal", nil, nil)
+	es.AddExpense("B", 1000, []string{"A", "C"}, "exact", map[string]float64{"A": 300, "C": 500}, nil)
+	es.AddExpense("C", 1000, []string{"A", "B", "D"}, "percentage", map[string]float64{"A": 25, "B": 30, "D": 10}, nil)
+
+	fmt.Println("User A's Expenses:")
+	for _, expense := range es.ListUserExpenses("A") {
+		fmt.Printf("%+v\n", expense)
 	}
 
-	// Example 1
-	expenseSystem.AddExpense("A", 1000, []string{"B", "C", "D"}, "equal", nil)
+	fmt.Println("User D's Expenses:")
+	for _, expense := range es.ListUserExpenses("D") {
+		fmt.Printf("%+v\n", expense)
+	}
 
-	// Example 2
-	expenseSystem.AddExpense("B", 1000, []string{"A", "C"}, "exact", map[string]int{"A": 300, "C": 500})
-
-	// Example 3
-	expenseSystem.AddExpense("C", 1000, []string{"A", "B", "D"}, "percentage", map[string]int{"A": 25, "B": 30, "D": 10})
-
-	// User A's Summary
-	userASummary := expenseSystem.GenerateIndividualSummary("A")
 	fmt.Println("User A's Summary:")
-	fmt.Println("Total Owes:", userASummary.TotalOwes)
-	fmt.Println("Details:")
-	for user, amount := range userASummary.Owes {
-		fmt.Printf("%s owes %s: %d\n", user, "A", amount)
-	}
+	es.GenerateIndividualSummary("A")
+	fmt.Println("User B's Summary:")
+	es.GenerateIndividualSummary("B")
+	fmt.Println("User C's Summary:")
+	es.GenerateIndividualSummary("C")
+	fmt.Println("User D's Summary:")
+	es.GenerateIndividualSummary("D")
 
-	// User B's Summary
-	userBSummary := expenseSystem.GenerateIndividualSummary("B")
-	fmt.Println("\nUser B's Summary:")
-	fmt.Println("Total Owes:", userBSummary.TotalOwes)
-	fmt.Println("Details:")
-	for user, amount := range userBSummary.Owes {
-		fmt.Printf("%s owes %s: %d\n", user, "B", amount)
-	}
+	fmt.Println("Overall Summary:")
+	es.GenerateOverallSummary()
 
-	// Listing User A's Expenses
-	userAExpenses := expenseSystem.ListUserExpenses("A")
-	fmt.Println("\nUser A's Expenses:")
-	for i, expense := range userAExpenses {
-		fmt.Printf("%d. %s Pays %d with %v (%s)\n", i+1, expense.PaidBy, expense.Amount, expense.Users, expense.ShareType)
-	}
+	fmt.Println("Settle Funds between A and B:")
+	es.SettleFunds("A", "B")
+
+	fmt.Println("User A's Summary:")
+	es.GenerateIndividualSummary("A")
+	fmt.Println("User B's Summary:")
+	es.GenerateIndividualSummary("B")
+	fmt.Println("User C's Summary:")
+	es.GenerateIndividualSummary("C")
+	fmt.Println("User D's Summary:")
+	es.GenerateIndividualSummary("D")
+
+	fmt.Println("Overall Summary after settlement:")
+	es.GenerateOverallSummary()
 }
+
+//User A's Summary:
+//B owes A 50.00
+//A is owed by D 250.00
+//User B's Summary:
+//B is owed by A 50.00
+//B is owed by C 200.00
+//User C's Summary:
+//B owes C 200.00
+//C is owed by D 100.00
+//User D's Summary:
+//A owes D 250.00
+//C owes D 100.00
+//Overall Summary:
+//B owes C 200.00
+//A owes D 250.00
+//C owes D 100.00
+//B owes A 50.00
