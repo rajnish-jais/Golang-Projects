@@ -18,35 +18,35 @@ package main
 
 import (
 	"container/heap"
-	"errors"
 	"fmt"
+	"time"
 )
 
-// User struct definition
+// User represents a user with an ID, image URI, and bio.
 type User struct {
 	UserID   string
 	ImageURI string
 	Bio      string
 }
 
-// Balance struct definition
+// Balance represents the balance of a user in a specific currency.
 type Balance struct {
 	Currency string
 	Amount   int
 }
 
-// Expense struct definition
+// Expense represents an expense with various metadata and balance information.
 type Expense struct {
-	ExpenseID    string
-	IsSettled    bool
-	UserBalances map[string]Balance // maps userID to Balance
-	GroupID      string
-	Title        string
-	Timestamp    int64
-	ImageURI     string
+	ExpenseID string
+	IsSettled bool
+	Balances  map[string]Balance
+	GroupID   string
+	Title     string
+	Timestamp int64
+	ImageURI  string
 }
 
-// Group struct definition
+// Group represents a group of users with various metadata.
 type Group struct {
 	GroupID     string
 	Users       []User
@@ -55,25 +55,25 @@ type Group struct {
 	Description string
 }
 
-// PaymentNode struct definition for balancing algorithm
+// PaymentNode represents a payment between two users.
 type PaymentNode struct {
 	From   string
 	To     string
 	Amount int
 }
 
-// MinHeap for balancing algorithm
-type MinHeap []Node
+// MaxHeap is a max-heap of Nodes.
+type MaxHeap []Node
 
-func (h MinHeap) Len() int           { return len(h) }
-func (h MinHeap) Less(i, j int) bool { return h[i].FinalBalance < h[j].FinalBalance }
-func (h MinHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+func (h MaxHeap) Len() int           { return len(h) }
+func (h MaxHeap) Less(i, j int) bool { return h[i].FinalBalance > h[j].FinalBalance }
+func (h MaxHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 
-func (h *MinHeap) Push(x interface{}) {
+func (h *MaxHeap) Push(x interface{}) {
 	*h = append(*h, x.(Node))
 }
 
-func (h *MinHeap) Pop() interface{} {
+func (h *MaxHeap) Pop() interface{} {
 	old := *h
 	n := len(old)
 	x := old[n-1]
@@ -81,152 +81,52 @@ func (h *MinHeap) Pop() interface{} {
 	return x
 }
 
-// Node struct for balancing algorithm
+// Node represents a user node with their final balance.
 type Node struct {
 	UserID       string
 	FinalBalance int
 }
 
-// In-memory database for users, groups, and expenses
-var users = map[string]User{}
-var groups = map[string]Group{}
-var expenses = map[string]Expense{}
+var (
+	users    = make(map[string]User)
+	groups   = make(map[string]Group)
+	expenses = make(map[string]Expense)
+)
 
-// Helper function to get the group by ID
-func getGroup(groupID string) (Group, error) {
-	group, exists := groups[groupID]
-	if !exists {
-		return Group{}, errors.New("group not found")
-	}
-	return group, nil
-}
+func makePaymentGraph(balances map[string]int) []PaymentNode {
+	var posHeap, negHeap MaxHeap
 
-// Helper function to get the user by ID
-func getUser(userID string) (User, error) {
-	user, exists := users[userID]
-	if !exists {
-		return User{}, errors.New("user not found")
-	}
-	return user, nil
-}
-
-// AddExpense function
-func addExpense(groupID string, userID string, amount int, currency string, title string, timestamp int64, imageURI string) string {
-	expenseID := fmt.Sprintf("%s_%d", groupID, len(expenses)+1)
-	userBalances := map[string]Balance{
-		userID: {Currency: currency, Amount: amount},
-	}
-	expenses[expenseID] = Expense{
-		ExpenseID:    expenseID,
-		IsSettled:    false,
-		UserBalances: userBalances,
-		GroupID:      groupID,
-		Title:        title,
-		Timestamp:    timestamp,
-		ImageURI:     imageURI,
-	}
-	return expenseID
-}
-
-// EditExpense function
-func editExpense(expenseID string, userID string, amount int, currency string) error {
-	expense, exists := expenses[expenseID]
-	if !exists {
-		return errors.New("expense not found")
-	}
-	expense.UserBalances[userID] = Balance{Currency: currency, Amount: amount}
-	expenses[expenseID] = expense
-	return nil
-}
-
-// SettleExpense function
-func settleExpense(expenseID string) error {
-	expense, exists := expenses[expenseID]
-	if !exists {
-		return errors.New("expense not found")
-	}
-	expense.IsSettled = true
-	expenses[expenseID] = expense
-	return nil
-}
-
-// CreateGroup function
-func createGroup(users []User, title string, imageURI string, description string) string {
-	groupID := fmt.Sprintf("group_%d", len(groups)+1)
-	groups[groupID] = Group{
-		GroupID:     groupID,
-		Users:       users,
-		ImageURI:    imageURI,
-		Title:       title,
-		Description: description,
-	}
-	return groupID
-}
-
-// GetGroupExpenses function
-func getGroupExpenses(groupID string) ([]Expense, error) {
-	var groupExpenses []Expense
-	for _, expense := range expenses {
-		if expense.GroupID == groupID {
-			groupExpenses = append(groupExpenses, expense)
-		}
-	}
-	return groupExpenses, nil
-}
-
-// makePaymentGraph function
-func makePaymentGraph(groupID string) ([]PaymentNode, error) {
-	_, err := getGroup(groupID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Calculate final balances
-	finalBalances := map[string]int{}
-	for _, expense := range expenses {
-		if expense.GroupID == groupID {
-			for userID, balance := range expense.UserBalances {
-				finalBalances[userID] += balance.Amount
-			}
-		}
-	}
-
-	positiveBalances := &MinHeap{}
-	negativeBalances := &MinHeap{}
-	heap.Init(positiveBalances)
-	heap.Init(negativeBalances)
-
-	// Divide users into positive and negative balance heaps
-	for userID, balance := range finalBalances {
+	for uid, balance := range balances {
 		if balance > 0 {
-			heap.Push(positiveBalances, Node{UserID: userID, FinalBalance: balance})
+			heap.Push(&posHeap, Node{UserID: uid, FinalBalance: balance})
 		} else if balance < 0 {
-			heap.Push(negativeBalances, Node{UserID: userID, FinalBalance: -balance})
+			heap.Push(&negHeap, Node{UserID: uid, FinalBalance: -balance})
 		}
 	}
 
-	var paymentGraph []PaymentNode
+	var graph []PaymentNode
 
-	// Balancing algorithm
-	for positiveBalances.Len() > 0 && negativeBalances.Len() > 0 {
-		receiver := heap.Pop(positiveBalances).(Node)
-		sender := heap.Pop(negativeBalances).(Node)
+	for posHeap.Len() > 0 && negHeap.Len() > 0 {
+		receiver := heap.Pop(&posHeap).(Node)
+		sender := heap.Pop(&negHeap).(Node)
 
 		amountTransferred := min(receiver.FinalBalance, sender.FinalBalance)
-		paymentGraph = append(paymentGraph, PaymentNode{From: sender.UserID, To: receiver.UserID, Amount: amountTransferred})
 
-		receiver.FinalBalance -= amountTransferred
+		graph = append(graph, PaymentNode{From: sender.UserID, To: receiver.UserID, Amount: amountTransferred})
+
 		sender.FinalBalance -= amountTransferred
+		receiver.FinalBalance -= amountTransferred
 
-		if receiver.FinalBalance != 0 {
-			heap.Push(positiveBalances, receiver)
+		if sender.FinalBalance > 0 {
+			heap.Push(&negHeap, sender)
 		}
-		if sender.FinalBalance != 0 {
-			heap.Push(negativeBalances, sender)
+
+		if receiver.FinalBalance > 0 {
+			heap.Push(&posHeap, receiver)
 		}
 	}
 
-	return paymentGraph, nil
+	return graph
 }
 
 func min(a, b int) int {
@@ -236,23 +136,126 @@ func min(a, b int) int {
 	return b
 }
 
+func addExpense(groupID, expenseID, title, imageURI string, balances map[string]Balance) {
+	expense := Expense{
+		ExpenseID: expenseID,
+		IsSettled: false,
+		Balances:  balances,
+		GroupID:   groupID,
+		Title:     title,
+		Timestamp: time.Now().Unix(),
+		ImageURI:  imageURI,
+	}
+	expenses[expenseID] = expense
+}
+
+func editExpense(expenseID, title, imageURI string, balances map[string]Balance) {
+	if expense, exists := expenses[expenseID]; exists {
+		expense.Title = title
+		expense.ImageURI = imageURI
+		expense.Balances = balances
+		expenses[expenseID] = expense
+	} else {
+		fmt.Println("Expense not found")
+	}
+}
+
+func settleExpense(expenseID string) {
+	if expense, exists := expenses[expenseID]; exists {
+		expense.IsSettled = true
+		expenses[expenseID] = expense
+	} else {
+		fmt.Println("Expense not found")
+	}
+}
+
+func makeGroup(groupID, title, imageURI, description string, users []User) {
+	group := Group{
+		GroupID:     groupID,
+		Users:       users,
+		ImageURI:    imageURI,
+		Title:       title,
+		Description: description,
+	}
+	groups[groupID] = group
+}
+
+func getGroupExpenses(groupID string) []Expense {
+	var groupExpenses []Expense
+	for _, expense := range expenses {
+		if expense.GroupID == groupID {
+			groupExpenses = append(groupExpenses, expense)
+		}
+	}
+	return groupExpenses
+}
+
+func getGroupPaymentGraph(groupID string) []PaymentNode {
+	balances := make(map[string]int)
+	for _, expense := range getGroupExpenses(groupID) {
+		for userID, balance := range expense.Balances {
+			balances[userID] += balance.Amount
+		}
+	}
+	return makePaymentGraph(balances)
+}
+
+func getUser(userID string) User {
+	return users[userID]
+}
+
+func getUsersInGroup(groupID string) []User {
+	return groups[groupID].Users
+}
+
+func getGroup(groupID string) Group {
+	return groups[groupID]
+}
+
+func getExpense(expenseID string) Expense {
+	return expenses[expenseID]
+}
+
 func main() {
-	// Example usage
-	u1 := User{UserID: "u1", ImageURI: "img1.jpg", Bio: "User 1"}
-	u2 := User{UserID: "u2", ImageURI: "img2.jpg", Bio: "User 2"}
-	u3 := User{UserID: "u3", ImageURI: "img3.jpg", Bio: "User 3"}
+	// Sample data
+	userA := User{UserID: "A", ImageURI: "", Bio: "User A"}
+	userB := User{UserID: "B", ImageURI: "", Bio: "User B"}
+	userC := User{UserID: "C", ImageURI: "", Bio: "User C"}
+	userD := User{UserID: "D", ImageURI: "", Bio: "User D"}
+	userE := User{UserID: "E", ImageURI: "", Bio: "User E"}
+	userF := User{UserID: "F", ImageURI: "", Bio: "User F"}
+	userG := User{UserID: "G", ImageURI: "", Bio: "User G"}
 
-	users[u1.UserID] = u1
-	users[u2.UserID] = u2
-	users[u3.UserID] = u3
+	users[userA.UserID] = userA
+	users[userB.UserID] = userB
+	users[userC.UserID] = userC
+	users[userD.UserID] = userD
+	users[userE.UserID] = userE
+	users[userF.UserID] = userF
+	users[userG.UserID] = userG
 
-	groupID := createGroup([]User{u1, u2, u3}, "Group 1", "group_img.jpg", "Group Description")
-	addExpense(groupID, u1.UserID, 100, "USD", "Lunch", 1625154000, "lunch_img.jpg")
-	addExpense(groupID, u2.UserID, -50, "USD", "Dinner", 1625154001, "dinner_img.jpg")
-	addExpense(groupID, u3.UserID, -50, "USD", "Snacks", 1625154002, "snacks_img.jpg")
+	makeGroup("group1", "Group 1", "", "A sample group", []User{userA, userB, userC, userD, userE, userF, userG})
 
-	paymentGraph, _ := makePaymentGraph(groupID)
+	balances := map[string]Balance{
+		userA.UserID: {Currency: "USD", Amount: 80},
+		userB.UserID: {Currency: "USD", Amount: 25},
+		userC.UserID: {Currency: "USD", Amount: -25},
+		userD.UserID: {Currency: "USD", Amount: -20},
+		userE.UserID: {Currency: "USD", Amount: -20},
+		userF.UserID: {Currency: "USD", Amount: -20},
+		userG.UserID: {Currency: "USD", Amount: -20},
+	}
+
+	addExpense("group1", "expense1", "Group Expense", "", balances)
+
+	fmt.Println("Group Expenses:")
+	for _, expense := range getGroupExpenses("group1") {
+		fmt.Printf("%+v\n", expense)
+	}
+
+	paymentGraph := getGroupPaymentGraph("group1")
+	fmt.Println("Payment Graph:")
 	for _, payment := range paymentGraph {
-		fmt.Printf("User %s pays %d to User %s\n", payment.From, payment.Amount, payment.To)
+		fmt.Printf("From: %s, To: %s, Amount: %d\n", payment.From, payment.To, payment.Amount)
 	}
 }
