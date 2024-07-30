@@ -23,7 +23,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"testing"
 )
 
 // CacheEntry represents a cache entry with dynamic attributes.
@@ -180,90 +179,39 @@ func main() {
 	}
 }
 
-// TestConcurrentAccess tests the cache for concurrent reads and writes.
-func TestConcurrentAccess(t *testing.T) {
-	cache := NewCache()
-	var wg sync.WaitGroup
-
-	// Number of concurrent goroutines
-	numGoroutines := 100
-
-	// Writer goroutines
-	wg.Add(numGoroutines)
-	for i := 0; i < numGoroutines; i++ {
-		go func(i int) {
-			defer wg.Done()
-			key := fmt.Sprintf("key%d", i)
-			value := CacheEntry{"value": i}
-			cache.Put(key, value)
-		}(i)
-	}
-
-	// Reader goroutines
-	wg.Add(numGoroutines)
-	for i := 0; i < numGoroutines; i++ {
-		go func(i int) {
-			defer wg.Done()
-			key := fmt.Sprintf("key%d", i)
-			cache.Get(key)
-		}(i)
-	}
-
-	// Wait for all goroutines to complete
-	wg.Wait()
-
-	// Verify that all keys were written correctly
-	for i := 0; i < numGoroutines; i++ {
-		key := fmt.Sprintf("key%d", i)
-		if entry, exists := cache.Get(key); !exists || entry["value"] != i {
-			t.Errorf("Key %s has incorrect value %v", key, entry)
-		}
-	}
-}
-
-// TestConcurrentReadWrite tests the cache for concurrent reads and writes.
-func TestConcurrentReadWrite(t *testing.T) {
-	cache := NewCache()
-	var wg sync.WaitGroup
-
-	// Number of concurrent goroutines
-	numGoroutines := 100
-
-	// Writer goroutines
-	wg.Add(numGoroutines)
-	for i := 0; i < numGoroutines; i++ {
-		go func(i int) {
-			defer wg.Done()
-			key := fmt.Sprintf("key%d", i)
-			value := CacheEntry{"value": i}
-			cache.Put(key, value)
-		}(i)
-	}
-
-	// Reader and writer goroutines
-	wg.Add(numGoroutines)
-	for i := 0; i < numGoroutines; i++ {
-		go func(i int) {
-			defer wg.Done()
-			key := fmt.Sprintf("key%d", i)
-			cache.Get(key)
-			cache.Put(key, CacheEntry{"value": i + 1})
-		}(i)
-	}
-
-	// Wait for all goroutines to complete
-	wg.Wait()
-
-	// Verify that all keys were written correctly
-	for i := 0; i < numGoroutines; i++ {
-		key := fmt.Sprintf("key%d", i)
-		if entry, exists := cache.Get(key); !exists || entry["value"] != i+1 {
-			t.Errorf("Key %s has incorrect value %v", key, entry)
-		}
-	}
-}
-
-func TestMain(m *testing.M) {
-	// Run tests
-	os.Exit(m.Run())
-}
+//func main() {
+//	cache := cache.NewCache()
+//	scanner := bufio.NewScanner(os.Stdin)
+//
+//	for {
+//		fmt.Print("> ")
+//		if !scanner.Scan() {
+//			break
+//		}
+//		input := scanner.Text()
+//		if input == "" {
+//			continue
+//		}
+//
+//		parts := strings.Fields(input)
+//		command := parts[0]
+//
+//		switch command {
+//		case "get":
+//			commands.HandleGet(cache, parts)
+//		case "put":
+//			commands.HandlePut(cache, parts)
+//		case "delete":
+//			commands.HandleDelete(cache, parts)
+//		case "search":
+//			commands.HandleSearch(cache, parts)
+//		case "keys":
+//			commands.HandleKeys(cache)
+//		case "exit":
+//			fmt.Println("Exiting...")
+//			return
+//		default:
+//			fmt.Println("Unknown command:", command)
+//		}
+//	}
+//}

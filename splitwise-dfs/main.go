@@ -213,12 +213,6 @@ func (es *ExpenseSystem) AddExpense(payer string, amount float64, participants [
 
 	// Update balances
 	for _, share := range expenseShares {
-		if es.Balances[share.User] == nil {
-			es.Balances[share.User] = make(map[string]float64)
-		}
-		if es.Balances[payer] == nil {
-			es.Balances[payer] = make(map[string]float64)
-		}
 		es.Balances[share.User][payer] += share.Amount
 		es.Balances[payer][share.User] -= share.Amount
 	}

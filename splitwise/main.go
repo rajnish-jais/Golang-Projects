@@ -82,6 +82,8 @@ package main
 
 import (
 	"fmt"
+	"splitwise/services"
+	"sync"
 )
 
 type User struct {
@@ -101,66 +103,65 @@ type Expense struct {
 	Metadata     map[string]string
 }
 
-type ExpenseSystem struct {
-	Users    map[string]User
-	Expenses []Expense
-	Balances map[string]map[string]float64
+type SimpleExpenseSystem struct {
+	mu       sync.RWMutex
+	users    map[string]User
+	expenses []Expense
+	balances map[string]map[string]float64
 }
 
-func NewExpenseSystem() *ExpenseSystem {
-	return &ExpenseSystem{
-		Users:    make(map[string]User),
-		Balances: make(map[string]map[string]float64),
+func NewSimpleExpenseSystem() *SimpleExpenseSystem {
+	return &SimpleExpenseSystem{
+		users:    make(map[string]User),
+		balances: make(map[string]map[string]float64),
 	}
 }
 
-func (es *ExpenseSystem) AddUser(name string) {
-	es.Users[name] = User{Name: name}
-	if es.Balances[name] == nil {
-		es.Balances[name] = make(map[string]float64)
+func (es *SimpleExpenseSystem) AddUser(name string) {
+	es.mu.Lock()
+	defer es.mu.Unlock()
+	es.users[name] = User{Name: name}
+	if es.balances[name] == nil {
+		es.balances[name] = make(map[string]float64)
 	}
 }
 
-func (es *ExpenseSystem) AddExpense(payer string, amount float64, participants []string, shareType string, shares map[string]float64, metadata map[string]string) {
-	// Compute shares
+func (es *SimpleExpenseSystem) AddExpense(payer string, amount float64, participants []string, shareType string, shares map[string]float64, metadata map[string]string) {
 	var expenseShares []Share
-	if shareType == "equal" {
+	switch shareType {
+	case "equal":
 		equalShare := amount / float64(len(participants)+1)
 		for _, participant := range participants {
 			expenseShares = append(expenseShares, Share{User: participant, Amount: equalShare})
 		}
-	} else if shareType == "exact" {
+	case "exact":
 		for user, share := range shares {
 			expenseShares = append(expenseShares, Share{User: user, Amount: share})
 		}
-	} else if shareType == "percentage" {
+	case "percentage":
 		for user, percentage := range shares {
 			shareAmount := (percentage / 100) * amount
 			expenseShares = append(expenseShares, Share{User: user, Amount: shareAmount})
 		}
 	}
 
-	// Add expense
-	es.Expenses = append(es.Expenses, Expense{payer, amount, participants, expenseShares, metadata})
+	es.mu.Lock()
+	es.expenses = append(es.expenses, Expense{payer, amount, participants, expenseShares, metadata})
 
-	// Update balances
 	for _, share := range expenseShares {
-		if es.Balances[share.User] == nil {
-			es.Balances[share.User] = make(map[string]float64)
-		}
-		if es.Balances[payer] == nil {
-			es.Balances[payer] = make(map[string]float64)
-		}
-		es.Balances[share.User][payer] += share.Amount
-		es.Balances[payer][share.User] -= share.Amount
+		es.balances[share.User][payer] += share.Amount
+		es.balances[payer][share.User] -= share.Amount
 	}
-
+	es.mu.Unlock()
 }
 
-func (es *ExpenseSystem) ListUserExpenses(userName string) []Expense {
-	fmt.Printf("User %v's Expenses:\n", userName)
+func (es *SimpleExpenseSystem) ListUserExpenses(userName string) []Expense {
+	es.mu.RLock()
+	defer es.mu.RUnlock()
+	fmt.Printf("\nUser %v's Expenses:\n", userName)
+
 	var userExpenses []Expense
-	for _, expense := range es.Expenses {
+	for _, expense := range es.expenses {
 		if expense.Payer == userName || contains(expense.Participants, userName) {
 			userExpenses = append(userExpenses, expense)
 		}
@@ -168,32 +169,44 @@ func (es *ExpenseSystem) ListUserExpenses(userName string) []Expense {
 	return userExpenses
 }
 
-func (es *ExpenseSystem) GenerateIndividualSummary(userName string) {
-	fmt.Printf("User %v's Summary:\n", userName)
-	for user, balance := range es.Balances[userName] {
+func (es *SimpleExpenseSystem) GenerateIndividualSummary(userName string) []string {
+	es.mu.RLock()
+	defer es.mu.RUnlock()
+	fmt.Printf("\nUser %v's Summary:\n", userName)
+
+	var summary []string
+	for user, balance := range es.balances[userName] {
 		if balance > 0 {
-			fmt.Printf("%s owes %s %.2f\n", user, userName, balance)
+			summary = append(summary, fmt.Sprintf("%s owes %s %.2f", user, userName, balance))
 		} else if balance < 0 {
-			fmt.Printf("%s is owed by %s %.2f\n", userName, user, -balance)
+			summary = append(summary, fmt.Sprintf("%s is owed by %s %.2f", userName, user, -balance))
 		}
 	}
+	return summary
 }
 
-func (es *ExpenseSystem) SettleFunds(user1, user2 string) {
-	fmt.Printf("Settle Funds between %v and %v:\n", user1, user2)
-	es.Balances[user1][user2] = 0
-	es.Balances[user2][user1] = 0
+func (es *SimpleExpenseSystem) SettleFunds(user1, user2 string) {
+	es.mu.Lock()
+	defer es.mu.Unlock()
+	fmt.Printf("\nSettle Funds between %v and %v:\n", user1, user2)
+
+	es.balances[user1][user2] = 0
+	es.balances[user2][user1] = 0
 }
 
-func (es *ExpenseSystem) GenerateOverallSummary() {
-	fmt.Println("Overall Summary:")
-	for user1, user1Balances := range es.Balances {
+func (es *SimpleExpenseSystem) GenerateOverallSummary() []string {
+	es.mu.RLock()
+	defer es.mu.RUnlock()
+	fmt.Println("\nOverall Summary:")
+	var summary []string
+	for user1, user1Balances := range es.balances {
 		for user2, balance := range user1Balances {
 			if balance > 0 {
-				fmt.Printf("%s owes %s %.2f\n", user2, user1, balance)
+				summary = append(summary, fmt.Sprintf("%s owes %s %.2f", user2, user1, balance))
 			}
 		}
 	}
+	return summary
 }
 
 func contains(slice []string, item string) bool {
@@ -206,7 +219,8 @@ func contains(slice []string, item string) bool {
 }
 
 func main() {
-	es := NewExpenseSystem()
+	//es := NewSimpleExpenseSystem()
+	es := services.NewSimpleExpenseSystem()
 
 	es.AddUser("A")
 	es.AddUser("B")
@@ -225,20 +239,49 @@ func main() {
 		fmt.Printf("%+v\n", expense)
 	}
 
-	es.GenerateIndividualSummary("A")
-	es.GenerateIndividualSummary("B")
-	es.GenerateIndividualSummary("C")
-	es.GenerateIndividualSummary("D")
+	for _, summary := range es.GenerateIndividualSummary("A") {
+		fmt.Println(summary)
+	}
 
-	es.GenerateOverallSummary()
+	for _, summary := range es.GenerateIndividualSummary("B") {
+		fmt.Println(summary)
+	}
+
+	for _, summary := range es.GenerateIndividualSummary("C") {
+		fmt.Println(summary)
+	}
+
+	for _, summary := range es.GenerateIndividualSummary("D") {
+		fmt.Println(summary)
+	}
+
+	for _, summary := range es.GenerateOverallSummary() {
+		fmt.Println(summary)
+	}
+
+	fmt.Println("Minimum number of transactions required:", es.MinTransfers())
 
 	es.SettleFunds("D", "C")
 
-	es.GenerateIndividualSummary("A")
-	es.GenerateIndividualSummary("B")
-	es.GenerateIndividualSummary("C")
-	es.GenerateIndividualSummary("D")
+	fmt.Println("Minimum number of transactions required:", es.MinTransfers())
 
-	fmt.Println("Overall Summary after settlement:")
-	es.GenerateOverallSummary()
+	for _, summary := range es.GenerateIndividualSummary("A") {
+		fmt.Println(summary)
+	}
+
+	for _, summary := range es.GenerateIndividualSummary("B") {
+		fmt.Println(summary)
+	}
+
+	for _, summary := range es.GenerateIndividualSummary("C") {
+		fmt.Println(summary)
+	}
+
+	for _, summary := range es.GenerateIndividualSummary("D") {
+		fmt.Println(summary)
+	}
+
+	for _, summary := range es.GenerateOverallSummary() {
+		fmt.Println(summary)
+	}
 }
