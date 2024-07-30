@@ -82,6 +82,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 )
 
 type User struct {
@@ -107,11 +108,78 @@ type ExpenseSystem struct {
 	Balances map[string]map[string]float64
 }
 
+type Transaction struct {
+	from, to string
+	amount   float64
+}
+
 func NewExpenseSystem() *ExpenseSystem {
 	return &ExpenseSystem{
 		Users:    make(map[string]User),
 		Balances: make(map[string]map[string]float64),
 	}
+}
+
+func (es *ExpenseSystem) computeMemberBalances() map[string]float64 {
+	memberVsBalanceMap := make(map[string]float64)
+
+	for _, balances := range es.Balances {
+		for to, amount := range balances {
+			memberVsBalanceMap[to] += amount
+		}
+	}
+	return memberVsBalanceMap
+}
+
+func (es *ExpenseSystem) minTransfers() int {
+	memberVsBalanceMap := es.computeMemberBalances()
+
+	balanceList := []float64{}
+	members := []string{}
+	for member, amount := range memberVsBalanceMap {
+		if amount != 0 {
+			balanceList = append(balanceList, amount)
+			members = append(members, member)
+		}
+	}
+
+	minTxnCount := dfs(balanceList, members, 0)
+
+	return minTxnCount
+}
+
+// Helper function for DFS and backtracking
+func dfs(balanceList []float64, members []string, currentIndex int) int {
+	if len(balanceList) == 0 || currentIndex >= len(balanceList) {
+		return 0
+	}
+	if balanceList[currentIndex] == 0 {
+		return dfs(balanceList, members, currentIndex+1)
+	}
+
+	currentVal := balanceList[currentIndex]
+	minTxnCount := math.MaxInt32
+
+	for txnIndex := currentIndex + 1; txnIndex < len(balanceList); txnIndex++ {
+		nextVal := balanceList[txnIndex]
+		if currentVal*nextVal < 0 {
+			balanceList[txnIndex] += currentVal
+
+			txnCount := 1 + dfs(balanceList, members, currentIndex+1)
+
+			if txnCount < minTxnCount {
+				minTxnCount = txnCount
+			}
+
+			balanceList[txnIndex] -= currentVal
+
+			if currentVal+nextVal == 0 {
+				break
+			}
+		}
+	}
+
+	return minTxnCount
 }
 
 func (es *ExpenseSystem) AddUser(name string) {
@@ -181,6 +249,7 @@ func (es *ExpenseSystem) GenerateIndividualSummary(userName string) {
 
 func (es *ExpenseSystem) SettleFunds(user1, user2 string) {
 	fmt.Printf("Settle Funds between %v and %v:\n", user1, user2)
+	fmt.Print(es.Balances)
 	es.Balances[user1][user2] = 0
 	es.Balances[user2][user1] = 0
 }
@@ -239,6 +308,8 @@ func main() {
 	es.GenerateIndividualSummary("C")
 	es.GenerateIndividualSummary("D")
 
-	fmt.Println("Overall Summary after settlement:")
+	minTxnCount := es.minTransfers()
+
+	fmt.Println("Minimum number of transactions required:", minTxnCount)
 	es.GenerateOverallSummary()
 }
