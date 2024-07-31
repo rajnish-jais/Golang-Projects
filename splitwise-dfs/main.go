@@ -108,11 +108,6 @@ type ExpenseSystem struct {
 	Balances map[string]map[string]float64
 }
 
-type Transaction struct {
-	from, to string
-	amount   float64
-}
-
 func NewExpenseSystem() *ExpenseSystem {
 	return &ExpenseSystem{
 		Users:    make(map[string]User),
@@ -135,26 +130,24 @@ func (es *ExpenseSystem) minTransfers() int {
 	memberVsBalanceMap := es.computeMemberBalances()
 
 	balanceList := []float64{}
-	members := []string{}
-	for member, amount := range memberVsBalanceMap {
+	for _, amount := range memberVsBalanceMap {
 		if amount != 0 {
 			balanceList = append(balanceList, amount)
-			members = append(members, member)
 		}
 	}
 
-	minTxnCount := dfs(balanceList, members, 0)
+	minTxnCount := dfs(balanceList, 0)
 
 	return minTxnCount
 }
 
 // Helper function for DFS and backtracking
-func dfs(balanceList []float64, members []string, currentIndex int) int {
+func dfs(balanceList []float64, currentIndex int) int {
 	if len(balanceList) == 0 || currentIndex >= len(balanceList) {
 		return 0
 	}
 	if balanceList[currentIndex] == 0 {
-		return dfs(balanceList, members, currentIndex+1)
+		return dfs(balanceList, currentIndex+1)
 	}
 
 	currentVal := balanceList[currentIndex]
@@ -165,7 +158,7 @@ func dfs(balanceList []float64, members []string, currentIndex int) int {
 		if currentVal*nextVal < 0 {
 			balanceList[txnIndex] += currentVal
 
-			txnCount := 1 + dfs(balanceList, members, currentIndex+1)
+			txnCount := 1 + dfs(balanceList, currentIndex+1)
 
 			if txnCount < minTxnCount {
 				minTxnCount = txnCount
